@@ -1,24 +1,66 @@
 import { ethers } from "hardhat";
+import { BaseContract } from "ethers";
+
+interface MockUSDC extends BaseContract {
+  mint(to: string, amount: bigint): Promise<any>;
+}
 
 async function main() {
-  console.log("Deploying QuickFi contracts to", (await ethers.provider.getNetwork()).name);
+  const network = await ethers.provider.getNetwork();
+  console.log("Deploying QuickFi contracts to", network.name);
 
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
 
-  // Deploy Mock USDC
-  console.log("Deploying MockUSDC...");
-  const MockUSDC = await ethers.getContractFactory("MockUSDC");
-  const mockUSDC = await MockUSDC.deploy("USD Coin", "USDC", 6);
-  await mockUSDC.waitForDeployment();
-  console.log("MockUSDC deployed to:", await mockUSDC.getAddress());
+  // Handle stablecoin setup based on network
+  let stablecoinAddress: string;
+  let mockUSDCInstance: MockUSDC | undefined;
+  
+  if (network.name === "hardhat" || network.name === "localhost") {
+    // Local testing - deploy MockUSDC
+    console.log("Local network detected - Deploying MockUSDC...");
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const mockUSDC = await MockUSDC.deploy("USD Coin", "USDC", 6);
+    await mockUSDC.waitForDeployment();
+    stablecoinAddress = await mockUSDC.getAddress();
+    mockUSDCInstance = mockUSDC as unknown as MockUSDC;
+    console.log("MockUSDC deployed to:", stablecoinAddress);
+
+    // Mint some test USDC
+    const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
+    await mockUSDCInstance.mint(deployer.address, usdcAmount);
+    console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to deployer");
+  } else {
+    // Production - use provided stablecoin address
+    const envAddress = process.env.STABLECOIN_ADDRESS;
+    if (!envAddress) {
+      throw new Error("STABLECOIN_ADDRESS environment variable is required for production deployment");
+    }
+    stablecoinAddress = envAddress;
+    console.log("Using existing stablecoin at:", stablecoinAddress);
+  }
 
   // Deploy TokenizedPolicy
   console.log("Deploying TokenizedPolicy...");
   const TokenizedPolicy = await ethers.getContractFactory("TokenizedPolicy");
-  const tokenizedPolicy = await TokenizedPolicy.deploy("Insurance Policy Token", "IPT");
+  const tokenizedPolicy = await TokenizedPolicy.deploy();
   await tokenizedPolicy.waitForDeployment();
-  console.log("TokenizedPolicy deployed to:", await tokenizedPolicy.getAddress());
+  const tokenizedPolicyAddress = await tokenizedPolicy.getAddress();
+  console.log("TokenizedPolicy implementation deployed to:", tokenizedPolicyAddress);
+
+  // Deploy TokenizedPolicy proxy
+  console.log("Deploying TokenizedPolicy proxy...");
+  const TokenizedPolicyProxy = await ethers.getContractFactory("ERC1967Proxy");
+  const tokenizedPolicyProxy = await TokenizedPolicyProxy.deploy(
+    tokenizedPolicyAddress,
+    tokenizedPolicy.interface.encodeFunctionData("initialize", ["Insurance Policy Token", "IPT"])
+  );
+  await tokenizedPolicyProxy.waitForDeployment();
+  const tokenizedPolicyProxyAddress = await tokenizedPolicyProxy.getAddress();
+  console.log("TokenizedPolicy proxy deployed to:", tokenizedPolicyProxyAddress);
+
+  // Get the proxy contract instance
+  const tokenizedPolicyInstance = await ethers.getContractAt("TokenizedPolicy", tokenizedPolicyProxyAddress);
 
   // Deploy RiskEngine
   console.log("Deploying RiskEngine...");
@@ -33,7 +75,7 @@ async function main() {
   const loanOrigination = await LoanOrigination.deploy(
     await riskEngine.getAddress(),
     deployer.address, // Temporary placeholder for MorphoAdapter
-    await mockUSDC.getAddress()
+    stablecoinAddress
   );
   await loanOrigination.waitForDeployment();
   console.log("LoanOrigination deployed to:", await loanOrigination.getAddress());
@@ -43,7 +85,7 @@ async function main() {
   const MorphoAdapter = await ethers.getContractFactory("MorphoAdapter");
   const morphoAdapter = await MorphoAdapter.deploy(
     await loanOrigination.getAddress(),
-    await mockUSDC.getAddress()
+    stablecoinAddress
   );
   await morphoAdapter.waitForDeployment();
   console.log("MorphoAdapter deployed to:", await morphoAdapter.getAddress());
@@ -56,26 +98,28 @@ async function main() {
   // Set risk parameters for the tokenized policy in the risk engine
   console.log("Setting risk parameters for TokenizedPolicy...");
   await riskEngine.updateRiskParameters(
-    await tokenizedPolicy.getAddress(),
+    await tokenizedPolicyInstance.getAddress(),
     7000, // 70% max LTV
     8500, // 85% liquidation threshold
     500   // 5% base interest rate
   );
   console.log("Risk parameters set");
 
-  // Mint some USDC to the MorphoAdapter for testing
-  console.log("Minting USDC to MorphoAdapter for testing...");
-  const usdcAmount = ethers.parseUnits("1000000", 6); // 1,000,000 USDC
-  await mockUSDC.mint(await morphoAdapter.getAddress(), usdcAmount);
-  console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to MorphoAdapter");
+  // For local testing, mint some USDC to MorphoAdapter
+  if ((network.name === "hardhat" || network.name === "localhost") && mockUSDCInstance) {
+    console.log("Minting USDC to MorphoAdapter for testing...");
+    const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
+    await mockUSDCInstance.mint(await morphoAdapter.getAddress(), usdcAmount);
+    console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to MorphoAdapter");
+  }
 
   console.log("\nQuickFi contracts deployed successfully!");
   console.log("\nContract Addresses:");
-  console.log("TokenizedPolicy:", await tokenizedPolicy.getAddress());
+  console.log("TokenizedPolicy:", await tokenizedPolicyInstance.getAddress());
   console.log("RiskEngine:", await riskEngine.getAddress());
   console.log("LoanOrigination:", await loanOrigination.getAddress());
   console.log("MorphoAdapter:", await morphoAdapter.getAddress());
-  console.log("MockUSDC:", await mockUSDC.getAddress());
+  console.log("Stablecoin:", stablecoinAddress);
 }
 
 main().catch((error) => {
