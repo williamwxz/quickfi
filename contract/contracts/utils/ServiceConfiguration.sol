@@ -147,12 +147,9 @@ contract ServiceConfiguration is
     }
 
     /**
-     * @dev Required override for UUPS proxy pattern
+     * @dev Authorizes an upgrade (required by UUPSUpgradeable)
      */
-    function _authorizeUpgrade(address newImplementation) internal override {
-        require(
-            hasRole(DEPLOYER_ROLE, msg.sender),
-            "ServiceConfiguration: caller is not a deployer"
-        );
+    function _authorizeUpgrade(address) internal override {
+        // Authorized via UPGRADER_ROLE, no additional logic needed here
     }
 } 

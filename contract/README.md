@@ -30,23 +30,23 @@ graph TB
     end
     
     %% Tokenization Flow
-    User -->|1. Submit Policy| Policy
-    Policy -->|2. Tokenize| TP
+    User -->|1_Submit_Policy| Policy
+    Policy -->|2_Tokenize| TP
     
     %% Loan Request Flow
-    TP -->|3. Use as Collateral| RE
-    RE -->|4. Risk Assessment| LO
+    TP -->|3_Use_as_Collateral| RE
+    RE -->|4_Risk_Assessment| LO
     
     %% Loan Activation Flow
-    LO -->|5. Approved Loan| MA
-    MA -->|6. Source Liquidity| MB
-    MB -->|7. Provide USDC| MA
-    MA -->|8. Transfer USDC| LO
-    LO -->|9. Disburse Loan| User
+    LO -->|5_Approved_Loan| MA
+    MA -->|6_Source_Liquidity| MB
+    MB -->|7_Provide_USDC| MA
+    MA -->|8_Transfer_USDC| LO
+    LO -->|9_Disburse_Loan| User
     
     %% Repayment Flow
-    User -->|10. Repay USDC| LO
-    LO -->|11. Return Collateral| User
+    User -->|10_Repay_USDC| LO
+    LO -->|11_Return_Collateral| User
     
     %% Styling
     classDef contract fill:#f9f,stroke:#333,stroke-width:2px
@@ -77,12 +77,12 @@ The system is built with a modular architecture:
 ### Installation
 
 1. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
 
 2. Configure environment variables:
-   ```
+   ```bash
    cp .env.example .env
    ```
    Then edit `.env` with your private key and Pharos RPC URL.
@@ -91,24 +91,76 @@ The system is built with a modular architecture:
 
 Compile the contracts:
 
-```
+```bash
 npm run compile
 ```
 
+## Testing
+
+### Local Development Environment
+
+1. Start a local Hardhat node:
+   ```bash
+   npx hardhat node
+   ```
+
+2. Deploy contracts to local network (in a new terminal):
+   ```bash
+   npx hardhat run scripts/deploy.ts --network localhost
+   ```
+
+### Running Tests
+
+1. Run all tests:
+   ```bash
+   npx hardhat test
+   ```
+
+2. Run specific test file:
+   ```bash
+   npx hardhat test test/QuickFi.ts
+   ```
+
+3. Run tests with gas reporting:
+   ```bash
+   REPORT_GAS=true npx hardhat test
+   ```
+
+4. Generate test coverage report:
+   ```bash
+   npx hardhat coverage
+   ```
+
 ### Testing
 
-Run the tests:
+1. Use console.log in contracts:
+   ```solidity
+   import "hardhat/console.sol";
+   // In your contract:
+   console.log("Value:", someValue);
+   ```
 
-```
-npm test
-```
+2. Use hardhat's trace functionality:
+   ```bash
+   npx hardhat test --trace
+   ```
+
+3. View gas usage with reporter:
+   ```bash
+   REPORT_GAS=true npx hardhat test
+   ```
 
 ### Deployment
 
 Deploy the contracts to the Pharos Network:
 
-```
+```bash
 npm run deploy
+```
+
+For upgradeable contracts:
+```bash
+npm run deploy:upgradeable
 ```
 
 ## Workflow

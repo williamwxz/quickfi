@@ -1,197 +1,165 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "../utils/BeaconImplementation.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../interfaces/ITokenizedPolicy.sol";
 
 /**
  * @title TokenizedPolicyUpgradeable
- * @dev Upgradable implementation of tokenized insurance policies as NFTs
+ * @dev Upgradeable ERC721 token representing insurance policies
  */
 contract TokenizedPolicyUpgradeable is 
-    BeaconImplementation,
-    ERC721URIStorageUpgradeable, 
-    AccessControlUpgradeable, 
-    ITokenizedPolicy 
+    ITokenizedPolicy,
+    Initializable,
+    ERC721Upgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable 
 {
-    using Counters for Counters.Counter;
-    
-    // Role definitions
+    // Roles
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant VALUATOR_ROLE = keccak256("VALUATOR_ROLE");
-    
-    Counters.Counter private _tokenIdCounter;
-    
-    // Mapping from token ID to policy details
-    struct PolicyData {
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+
+    // Policy details struct
+    struct PolicyDetails {
         string policyNumber;
         address issuer;
         uint256 valuationAmount;
         uint256 expiryDate;
         bytes32 documentHash;
     }
-    
-    mapping(uint256 => PolicyData) private _policies;
-    
-    // Events
-    event PolicyMinted(
-        uint256 indexed tokenId,
-        address indexed recipient,
-        string policyNumber,
-        uint256 valuationAmount
-    );
-    
-    event ValuationUpdated(
-        uint256 indexed tokenId,
-        uint256 oldValuation,
-        uint256 newValuation
-    );
-    
+
+    // Policy details
+    mapping(uint256 => PolicyDetails) private _policyDetails;
+    uint256 private _nextTokenId;
+
     /**
-     * @dev Empty constructor that disables initializers
-     * Required for proxy contracts
+     * @dev Constructor
      */
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
-    
+
     /**
-     * @dev Initializes the contract with provided values
-     * @param name Name of the ERC721 token
-     * @param symbol Symbol of the ERC721 token
+     * @dev Initializer
+     * @param name The token name
+     * @param symbol The token symbol
      */
-    function initialize(string memory name, string memory symbol) external initializer {
+    function initialize(string memory name, string memory symbol) external override initializer {
         __ERC721_init(name, symbol);
-        __ERC721URIStorage_init();
         __AccessControl_init();
-        
+        __UUPSUpgradeable_init();
+
+        // Grant roles to deployer
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
-        _grantRole(VALUATOR_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE, msg.sender);
     }
-    
+
     /**
-     * @dev See {ITokenizedPolicy-getPolicyDetails}
-     */
-    function getPolicyDetails(uint256 tokenId) external view override returns (
-        string memory policyNumber,
-        address issuer,
-        uint256 valuationAmount,
-        uint256 expiryDate
-    ) {
-        require(_exists(tokenId), "TokenizedPolicy: Policy does not exist");
-        PolicyData storage policy = _policies[tokenId];
-        return (
-            policy.policyNumber,
-            policy.issuer,
-            policy.valuationAmount,
-            policy.expiryDate
-        );
-    }
-    
-    /**
-     * @dev See {ITokenizedPolicy-mintPolicy}
+     * @dev Mints a new policy token
+     * @param to The recipient address
+     * @param policyNumber The policy number
+     * @param issuer The policy issuer
+     * @param valuationAmount The policy valuation amount
+     * @param expiryDate The policy expiry date
+     * @param documentHash The policy document hash
+     * @return tokenId The minted token ID
      */
     function mintPolicy(
-        address recipient,
-        string calldata policyNumber,
+        address to,
+        string memory policyNumber,
         address issuer,
         uint256 valuationAmount,
         uint256 expiryDate,
         bytes32 documentHash
-    ) external override returns (uint256) {
-        require(hasRole(MINTER_ROLE, msg.sender), "TokenizedPolicy: Must have minter role");
-        require(recipient != address(0), "TokenizedPolicy: Cannot mint to zero address");
-        require(bytes(policyNumber).length > 0, "TokenizedPolicy: Policy number cannot be empty");
-        require(issuer != address(0), "TokenizedPolicy: Issuer cannot be zero address");
-        require(valuationAmount > 0, "TokenizedPolicy: Valuation must be greater than zero");
-        require(expiryDate > block.timestamp, "TokenizedPolicy: Policy must not be expired");
-        
-        uint256 tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
-        
-        _safeMint(recipient, tokenId);
-        
-        _policies[tokenId] = PolicyData({
+    ) external override onlyRole(MINTER_ROLE) returns (uint256) {
+        require(to != address(0), "TokenizedPolicy: Zero address");
+        require(issuer != address(0), "TokenizedPolicy: Zero address");
+        require(expiryDate > block.timestamp, "TokenizedPolicy: Invalid expiry date");
+
+        uint256 tokenId = _nextTokenId++;
+        _mint(to, tokenId);
+
+        _policyDetails[tokenId] = PolicyDetails({
             policyNumber: policyNumber,
             issuer: issuer,
             valuationAmount: valuationAmount,
             expiryDate: expiryDate,
             documentHash: documentHash
         });
-        
-        emit PolicyMinted(tokenId, recipient, policyNumber, valuationAmount);
-        
+
+        emit PolicyMinted(tokenId, to, policyNumber, issuer, valuationAmount, expiryDate);
         return tokenId;
     }
-    
+
     /**
-     * @dev See {ITokenizedPolicy-updateValuation}
-     */
-    function updateValuation(uint256 tokenId, uint256 newValuation) external override {
-        require(hasRole(VALUATOR_ROLE, msg.sender), "TokenizedPolicy: Must have valuator role");
-        require(_exists(tokenId), "TokenizedPolicy: Policy does not exist");
-        require(newValuation > 0, "TokenizedPolicy: Valuation must be greater than zero");
-        
-        uint256 oldValuation = _policies[tokenId].valuationAmount;
-        _policies[tokenId].valuationAmount = newValuation;
-        
-        emit ValuationUpdated(tokenId, oldValuation, newValuation);
-    }
-    
-    /**
-     * @dev Gets the document hash for a policy
+     * @dev Updates the valuation of a policy
      * @param tokenId The token ID
-     * @return documentHash The document hash
+     * @param newValuation The new valuation amount
      */
-    function getDocumentHash(uint256 tokenId) external view returns (bytes32) {
-        require(_exists(tokenId), "TokenizedPolicy: Policy does not exist");
-        return _policies[tokenId].documentHash;
+    function updateValuation(uint256 tokenId, uint256 newValuation) external override onlyRole(MINTER_ROLE) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+
+        _policyDetails[tokenId].valuationAmount = newValuation;
+        emit PolicyValuationUpdated(tokenId, newValuation);
     }
-    
+
     /**
-     * @dev Checks if a policy is expired
+     * @dev Gets the details of a policy
      * @param tokenId The token ID
-     * @return expired Whether the policy is expired
+     * @return policyNumber The policy number
+     * @return issuer The policy issuer
+     * @return valuationAmount The policy valuation amount
+     * @return expiryDate The policy expiry date
+     * @return documentHash The policy document hash
      */
-    function isExpired(uint256 tokenId) external view returns (bool) {
-        require(_exists(tokenId), "TokenizedPolicy: Policy does not exist");
-        return block.timestamp > _policies[tokenId].expiryDate;
+    function getPolicyDetails(uint256 tokenId) external view override returns (
+        string memory policyNumber,
+        address issuer,
+        uint256 valuationAmount,
+        uint256 expiryDate,
+        bytes32 documentHash
+    ) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+
+        PolicyDetails memory details = _policyDetails[tokenId];
+        return (
+            details.policyNumber,
+            details.issuer,
+            details.valuationAmount,
+            details.expiryDate,
+            details.documentHash
+        );
     }
-    
-    // Override required by Solidity
+
+    /**
+     * @dev Gets the valuation of a policy
+     * @param tokenId The token ID
+     * @return The policy valuation amount
+     */
+    function getValuation(uint256 tokenId) external view override returns (uint256) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        return _policyDetails[tokenId].valuationAmount;
+    }
+
+    /**
+     * @dev Required by UUPS pattern
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
+
+    /**
+     * @dev See {IERC165-supportsInterface}
+     */
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721URIStorageUpgradeable, AccessControlUpgradeable)
+        virtual
+        override(ERC721Upgradeable, AccessControlUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
-    }
-    
-    /**
-     * @dev See {IERC721Metadata-tokenURI}.
-     */
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721URIStorageUpgradeable)
-        returns (string memory)
-    {
-        return super.tokenURI(tokenId);
-    }
-    
-    /**
-     * @dev See {ERC721-_burn}. This override additionally checks to see if a
-     * token-specific URI was set for the token, and if so, it deletes the token URI from
-     * the storage mapping.
-     */
-    function _burn(uint256 tokenId) internal override(ERC721URIStorageUpgradeable) {
-        super._burn(tokenId);
     }
 } 

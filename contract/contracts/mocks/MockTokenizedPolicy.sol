@@ -1,27 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "../interfaces/ITokenizedPolicy.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title TokenizedPolicy
- * @dev ERC721 token representing insurance policies
+ * @title MockTokenizedPolicy
+ * @dev Mock contract for TokenizedPolicy used in tests
  */
-contract TokenizedPolicy is 
-    ITokenizedPolicy,
-    Initializable,
-    ERC721Upgradeable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable 
-{
-    // Roles
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
-
+contract MockTokenizedPolicy is ERC721, Ownable {
     // Policy details struct
     struct PolicyDetails {
         string policyNumber;
@@ -37,26 +24,10 @@ contract TokenizedPolicy is
 
     /**
      * @dev Constructor
-     */
-    constructor() {
-        _disableInitializers();
-    }
-
-    /**
-     * @dev Initializer
      * @param name The token name
      * @param symbol The token symbol
      */
-    function initialize(string memory name, string memory symbol) external override initializer {
-        __ERC721_init(name, symbol);
-        __AccessControl_init();
-        __UUPSUpgradeable_init();
-
-        // Grant roles to deployer
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, msg.sender);
-    }
+    constructor(string memory name, string memory symbol) ERC721(name, symbol) Ownable() {}
 
     /**
      * @dev Mints a new policy token
@@ -75,10 +46,10 @@ contract TokenizedPolicy is
         uint256 valuationAmount,
         uint256 expiryDate,
         bytes32 documentHash
-    ) external onlyRole(MINTER_ROLE) returns (uint256) {
-        require(to != address(0), "TokenizedPolicy: Zero address");
-        require(issuer != address(0), "TokenizedPolicy: Zero address");
-        require(expiryDate > block.timestamp, "TokenizedPolicy: Invalid expiry date");
+    ) external returns (uint256) {
+        require(to != address(0), "MockTokenizedPolicy: Zero address");
+        require(issuer != address(0), "MockTokenizedPolicy: Zero address");
+        // Don't check expiry date for testing purposes
 
         uint256 tokenId = _nextTokenId++;
         _mint(to, tokenId);
@@ -91,7 +62,6 @@ contract TokenizedPolicy is
             documentHash: documentHash
         });
 
-        emit PolicyMinted(tokenId, to, policyNumber, issuer, valuationAmount, expiryDate);
         return tokenId;
     }
 
@@ -100,11 +70,9 @@ contract TokenizedPolicy is
      * @param tokenId The token ID
      * @param newValuation The new valuation amount
      */
-    function updateValuation(uint256 tokenId, uint256 newValuation) external onlyRole(MINTER_ROLE) {
-        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
-
+    function updateValuation(uint256 tokenId, uint256 newValuation) external {
+        require(_exists(tokenId), "MockTokenizedPolicy: Invalid token ID");
         _policyDetails[tokenId].valuationAmount = newValuation;
-        emit PolicyValuationUpdated(tokenId, newValuation);
     }
 
     /**
@@ -123,7 +91,7 @@ contract TokenizedPolicy is
         uint256 expiryDate,
         bytes32 documentHash
     ) {
-        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        require(_exists(tokenId), "MockTokenizedPolicy: Invalid token ID");
 
         PolicyDetails memory details = _policyDetails[tokenId];
         return (
@@ -141,25 +109,7 @@ contract TokenizedPolicy is
      * @return The policy valuation amount
      */
     function getValuation(uint256 tokenId) external view returns (uint256) {
-        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        require(_exists(tokenId), "MockTokenizedPolicy: Invalid token ID");
         return _policyDetails[tokenId].valuationAmount;
-    }
-
-    /**
-     * @dev Required by UUPS pattern
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
-
-    /**
-     * @dev See {IERC165-supportsInterface}
-     */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(ERC721Upgradeable, AccessControlUpgradeable)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
     }
 } 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../interfaces/IRiskEngine.sol";
 import "../interfaces/ITokenizedPolicy.sol";
 
@@ -10,7 +11,7 @@ import "../interfaces/ITokenizedPolicy.sol";
  * @dev Controller for managing risk assessment and parameters
  * Based on the controller pattern from Perimeter Protocol
  */
-contract RiskController is AccessControl {
+contract RiskController is AccessControl, ReentrancyGuard {
     bytes32 public constant RISK_MANAGER_ROLE = keccak256("RISK_MANAGER_ROLE");
     
     // Default risk parameters (in basis points)
@@ -32,6 +33,9 @@ contract RiskController is AccessControl {
     // Mapping from borrower to their risk score (1-100, higher is better)
     mapping(address => uint256) private _borrowerRiskScores;
     
+    // Risk engine contract
+    IRiskEngine public riskEngine;
+    
     // Events
     event RiskParametersUpdated(
         address indexed collateralToken,
@@ -46,82 +50,84 @@ contract RiskController is AccessControl {
         uint256 newScore
     );
     
-    constructor() {
+    event RiskEngineUpdated(address indexed oldEngine, address indexed newEngine);
+    event RiskAssessed(
+        address indexed collateralToken,
+        uint256 indexed collateralTokenId,
+        uint256 loanAmount,
+        uint256 loanDuration,
+        bool approved
+    );
+    
+    /**
+     * @dev Constructor
+     * @param riskEngineAddress The address of the risk engine contract
+     */
+    constructor(address riskEngineAddress) {
+        require(riskEngineAddress != address(0), "RiskController: Zero address");
+        riskEngine = IRiskEngine(riskEngineAddress);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(RISK_MANAGER_ROLE, msg.sender);
     }
     
     /**
-     * @dev Assesses the risk of a loan request
-     * @param borrower The address of the borrower
-     * @param collateralToken The address of the tokenized policy contract
-     * @param collateralTokenId The tokenized policy ID
-     * @param requestedAmount The requested loan amount
-     * @param duration The loan duration in seconds
-     * @return assessment The risk assessment result
+     * @dev Updates the risk engine contract
+     * @param newRiskEngine The address of the new risk engine contract
+     */
+    function updateRiskEngine(address newRiskEngine) external onlyRole(RISK_MANAGER_ROLE) {
+        require(newRiskEngine != address(0), "RiskController: Zero address");
+        address oldEngine = address(riskEngine);
+        riskEngine = IRiskEngine(newRiskEngine);
+        emit RiskEngineUpdated(oldEngine, newRiskEngine);
+    }
+    
+    /**
+     * @dev Assesses the risk of a loan
+     * @param collateralToken The address of the collateral token contract
+     * @param collateralTokenId The ID of the collateral token
+     * @param loanAmount The amount of the loan
+     * @param loanDuration The duration of the loan in seconds
+     * @return approved Whether the loan is approved
      */
     function assessRisk(
-        address borrower,
         address collateralToken,
         uint256 collateralTokenId,
-        uint256 requestedAmount,
-        uint256 duration
-    ) external view returns (IRiskEngine.RiskAssessment memory assessment) {
-        // Get collateral value
-        (,,uint256 collateralValue,uint256 expiryDate) = ITokenizedPolicy(collateralToken).getPolicyDetails(collateralTokenId);
-        
-        // Check if policy is valid
-        if (block.timestamp > expiryDate) {
-            return IRiskEngine.RiskAssessment({
-                approved: false,
-                recommendedLTV: 0,
-                maxLoanAmount: 0,
-                interestRate: 0,
-                reason: "Policy is expired"
-            });
-        }
-        
-        // Get risk params for this collateral
-        CollateralRiskParams memory params = _getCollateralRiskParams(collateralToken);
-        
-        // Calculate max loan amount based on LTV
-        uint256 maxLoanAmount = (collateralValue * params.maxLTV) / 10000;
-        
-        // Check if requested amount exceeds max loan amount
-        if (requestedAmount > maxLoanAmount) {
-            return IRiskEngine.RiskAssessment({
-                approved: false,
-                recommendedLTV: params.maxLTV,
-                maxLoanAmount: maxLoanAmount,
-                interestRate: 0,
-                reason: "Requested amount exceeds maximum LTV"
-            });
-        }
-        
-        // Calculate actual LTV for the requested amount
-        uint256 actualLTV = (requestedAmount * 10000) / collateralValue;
-        
-        // Calculate interest rate based on LTV ratio and duration
-        uint256 ltvFactor = (actualLTV * 100) / params.maxLTV;
-        uint256 durationFactor = _calculateDurationFactor(duration);
-        uint256 borrowerRiskScore = _getBorrowerRiskScore(borrower);
-        
-        // Calculate final interest rate
-        uint256 interestRate = _calculateInterestRate(
-            params.baseInterestRate,
-            ltvFactor,
-            durationFactor,
-            borrowerRiskScore
+        uint256 loanAmount,
+        uint256 loanDuration
+    ) external nonReentrant returns (bool) {
+        require(collateralToken != address(0), "RiskController: Zero address");
+        require(loanAmount > 0, "RiskController: Invalid loan amount");
+        require(loanDuration > 0, "RiskController: Invalid loan duration");
+
+        // Get policy details
+        (
+            ,  // string memory policyNumber (unused)
+            ,  // address issuer (unused)
+            ,  // uint256 collateralValue (unused)
+            uint256 expiryDate,
+            // bytes32 documentHash (unused)
+        ) = ITokenizedPolicy(collateralToken).getPolicyDetails(collateralTokenId);
+
+        // Check policy expiry
+        require(expiryDate > block.timestamp + loanDuration, "RiskController: Policy expires before loan end");
+
+        // Assess risk using risk engine
+        bool approved = riskEngine.evaluateRisk(
+            collateralToken,
+            collateralTokenId,
+            loanAmount,
+            loanDuration
         );
-        
-        // Approve the loan
-        return IRiskEngine.RiskAssessment({
-            approved: true,
-            recommendedLTV: actualLTV,
-            maxLoanAmount: maxLoanAmount,
-            interestRate: interestRate,
-            reason: "Loan approved"
-        });
+
+        emit RiskAssessed(
+            collateralToken,
+            collateralTokenId,
+            loanAmount,
+            loanDuration,
+            approved
+        );
+
+        return approved;
     }
     
     /**

@@ -3,9 +3,8 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import "../interfaces/IServiceConfiguration.sol";
-import "../interfaces/IBeacon.sol";
-import "./UpgradeableBeacon.sol";
 import "./BeaconProxy.sol";
 
 /**
@@ -33,9 +32,9 @@ abstract contract BeaconProxyFactory is IBeacon {
     }
     
     /**
-     * @inheritdoc IBeacon
+     * @dev The implementation address
      */
-    address public implementation;
+    address private _implementation;
     
     /**
      * @dev Constructor that sets the service configuration
@@ -47,15 +46,30 @@ abstract contract BeaconProxyFactory is IBeacon {
     }
     
     /**
-     * @inheritdoc IBeacon
+     * @dev Returns the current implementation address
      */
-    function setImplementation(address newImplementation) 
+    function implementation() public view virtual override returns (address) {
+        return _implementation;
+    }
+    
+    /**
+     * @dev Sets a new implementation address for the beacon
+     */
+    function updateImplementation(address newImplementation) 
         external 
         onlyDeployer 
     {
+        _setImplementation(newImplementation);
+    }
+    
+    /**
+     * @dev Internal function to set the implementation
+     */
+    function _setImplementation(address newImplementation) 
+        internal 
+    {
         require(newImplementation.isContract(), "BeaconProxyFactory: not a contract");
-        implementation = newImplementation;
-        emit ImplementationSet(newImplementation);
+        _implementation = newImplementation;
     }
     
     /**
@@ -67,7 +81,7 @@ abstract contract BeaconProxyFactory is IBeacon {
         internal 
         returns (address proxy) 
     {
-        require(implementation != address(0), "BeaconProxyFactory: implementation not set");
+        require(_implementation != address(0), "BeaconProxyFactory: implementation not set");
         
         proxy = address(new BeaconProxy(address(this), data));
         

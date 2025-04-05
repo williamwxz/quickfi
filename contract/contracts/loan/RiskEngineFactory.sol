@@ -26,7 +26,7 @@ contract RiskEngineFactory is BeaconProxyFactory {
     {
         // Set the initial implementation
         require(implementation_.isContract(), "RiskEngineFactory: not a contract");
-        implementation = implementation_;
+        _setImplementation(implementation_);
     }
     
     /**

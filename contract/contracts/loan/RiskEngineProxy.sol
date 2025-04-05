@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
  * @title RiskEngineProxy
- * @dev Proxy contract for RiskEngine using OpenZeppelin's TransparentUpgradeableProxy
+ * @dev Proxy contract for RiskEngine implementation
  */
-contract RiskEngineProxy is TransparentUpgradeableProxy {
+contract RiskEngineProxy is ERC1967Proxy {
     /**
      * @dev Constructor
-     * @param _logic Initial implementation address
-     * @param admin_ Admin address for ProxyAdmin
-     * @param _data Initialization data
+     * @param implementation The implementation contract address
+     * @param admin The proxy admin address
+     * @param data The initialization data
      */
     constructor(
-        address _logic,
-        address admin_,
-        bytes memory _data
-    ) TransparentUpgradeableProxy(_logic, admin_, _data) {}
+        address implementation,
+        address admin,
+        bytes memory data
+    ) ERC1967Proxy(implementation, data) {}
 } 

@@ -26,7 +26,7 @@ contract TokenizedPolicyFactory is BeaconProxyFactory {
     {
         // Set the initial implementation
         require(implementation_.isContract(), "TokenizedPolicyFactory: not a contract");
-        implementation = implementation_;
+        _setImplementation(implementation_);
     }
     
     /**

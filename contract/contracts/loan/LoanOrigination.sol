@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ILoanOrigination.sol";
 import "../interfaces/IRiskEngine.sol";
 import "../interfaces/IMorphoAdapter.sol";
@@ -17,10 +18,12 @@ import "../interfaces/ITokenizedPolicy.sol";
  */
 contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
     using Counters for Counters.Counter;
+    using SafeERC20 for IERC20;
     
     // Roles
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant LIQUIDATOR_ROLE = keccak256("LIQUIDATOR_ROLE");
+    bytes32 public constant LOAN_MANAGER_ROLE = keccak256("LOAN_MANAGER_ROLE");
     
     // Counters
     Counters.Counter private _loanIdCounter;
@@ -43,6 +46,16 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
     event MorphoAdapterUpdated(address indexed oldAdapter, address indexed newAdapter);
     event USDCTokenUpdated(address indexed oldToken, address indexed newToken);
     event CollateralApproved(address indexed borrower, address indexed token, uint256 tokenId);
+    event LoanCreated(
+        uint256 indexed loanId,
+        address indexed borrower,
+        address indexed lender,
+        uint256 amount,
+        uint256 duration
+    );
+    event LoanRepaid(uint256 indexed loanId);
+    event LoanDefaulted(uint256 indexed loanId);
+    event LoanLiquidated(uint256 indexed loanId);
     
     /**
      * @dev Constructor for the LoanOrigination contract
@@ -66,6 +79,7 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(LIQUIDATOR_ROLE, msg.sender);
+        _grantRole(LOAN_MANAGER_ROLE, msg.sender);
     }
     
     /**
@@ -192,7 +206,7 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         require(amount <= totalRepayment, "LoanOrigination: Amount exceeds total repayment");
         
         // Transfer USDC from borrower to this contract
-        IERC20(usdcToken).transferFrom(msg.sender, address(this), amount);
+        IERC20(usdcToken).safeTransferFrom(msg.sender, address(this), amount);
         
         // Approve Morpho adapter to use USDC
         IERC20(usdcToken).approve(morphoAdapter, amount);
@@ -214,7 +228,7 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         }
         
         // Emit event
-        emit LoanRepaid(loanId, msg.sender, amount);
+        emit LoanRepaid(loanId);
     }
     
     /**
@@ -245,7 +259,7 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         loan.status = LoanStatus.LIQUIDATED;
         
         // Emit event
-        emit LoanLiquidated(loanId, loan.borrower, loan.collateralTokenId);
+        emit LoanLiquidated(loanId);
     }
     
     /**
@@ -315,7 +329,13 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
      */
     function _isCollateralInsufficient(Loan memory loan) internal view returns (bool) {
         // Get current collateral value
-        (,,uint256 currentValue,) = ITokenizedPolicy(loan.collateralToken).getPolicyDetails(loan.collateralTokenId);
+        (
+            ,  // string memory policyNumber (unused)
+            ,  // address issuer (unused)
+            uint256 currentValue,
+            ,  // uint256 expiryDate (unused)
+            // bytes32 documentHash (unused)
+        ) = ITokenizedPolicy(loan.collateralToken).getPolicyDetails(loan.collateralTokenId);
         
         // Get liquidation threshold for this collateral
         (,uint256 liquidationThreshold,) = IRiskEngine(riskEngine).getRiskParameters(loan.collateralToken);

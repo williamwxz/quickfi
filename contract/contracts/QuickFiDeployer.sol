@@ -46,6 +46,7 @@ contract QuickFiDeployer is Ownable {
     constructor() Ownable() {
         // Create service configuration
         serviceConfiguration = new ServiceConfiguration();
+        serviceConfiguration.initialize();
         
         // Create proxy admin
         proxyAdmin = new ProxyAdmin();
@@ -81,7 +82,7 @@ contract QuickFiDeployer is Ownable {
         ));
         
         // Register factory as deployer
-        serviceConfiguration.addDeployer(address(tokenizedPolicyFactory));
+        serviceConfiguration.grantRole(serviceConfiguration.DEPLOYER_ROLE(), address(tokenizedPolicyFactory));
         
         // Emit event
         emit FactoryDeployed("TokenizedPolicyFactory", address(tokenizedPolicyFactory));
@@ -112,7 +113,7 @@ contract QuickFiDeployer is Ownable {
         );
         
         // Deploy RiskController
-        riskController = address(new RiskController());
+        riskController = address(new RiskController(riskEngine));
         
         // Set risk parameters
         RiskController(riskController).updateRiskParameters(
@@ -138,7 +139,7 @@ contract QuickFiDeployer is Ownable {
      * @param deployer The deployer address to add
      */
     function addDeployer(address deployer) external onlyOwner {
-        serviceConfiguration.addDeployer(deployer);
+        serviceConfiguration.grantRole(serviceConfiguration.DEPLOYER_ROLE(), deployer);
     }
     
     /**
@@ -146,7 +147,7 @@ contract QuickFiDeployer is Ownable {
      * @param deployer The deployer address to remove
      */
     function removeDeployer(address deployer) external onlyOwner {
-        serviceConfiguration.removeDeployer(deployer);
+        serviceConfiguration.revokeRole(serviceConfiguration.DEPLOYER_ROLE(), deployer);
     }
     
     /**

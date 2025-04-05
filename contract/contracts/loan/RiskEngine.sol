@@ -7,68 +7,99 @@ import "../interfaces/ITokenizedPolicy.sol";
 
 /**
  * @title RiskEngine
- * @dev Implementation of the risk assessment engine for loan requests
+ * @dev Evaluates loan risk based on policy value and loan parameters
  */
-contract RiskEngine is AccessControl, IRiskEngine {
+contract RiskEngine is IRiskEngine, AccessControl {
+    // Roles
     bytes32 public constant RISK_MANAGER_ROLE = keccak256("RISK_MANAGER_ROLE");
-    
-    // Default risk parameters (in basis points)
-    uint256 private constant DEFAULT_MAX_LTV = 7000; // 70%
-    uint256 private constant DEFAULT_LIQUIDATION_THRESHOLD = 8500; // 85%
-    uint256 private constant DEFAULT_BASE_INTEREST_RATE = 500; // 5%
-    
+
+    // Risk parameters
+    uint256 public constant MAX_LTV = 7000; // 70% in basis points
+    uint256 public constant MIN_DURATION = 1 days;
+    uint256 public constant MAX_DURATION = 365 days;
+    uint256 public constant DEFAULT_LIQUIDATION_THRESHOLD = 8500; // 85% in basis points
+    uint256 public constant DEFAULT_BASE_INTEREST_RATE = 500; // 5% in basis points
+
     // Risk parameters for each collateral type
     struct CollateralRiskParams {
-        uint256 maxLTV; // in basis points (e.g., 7000 = 70%)
-        uint256 liquidationThreshold; // in basis points (e.g., 8500 = 85%)
-        uint256 baseInterestRate; // in basis points (e.g., 500 = 5%)
+        uint256 maxLTV;
+        uint256 liquidationThreshold;
+        uint256 baseInterestRate;
         bool configured;
     }
-    
+
     // Mapping from collateral token address to risk parameters
     mapping(address => CollateralRiskParams) private _riskParams;
-    
-    // Mapping from borrower to their risk score (1-100, higher is better)
-    mapping(address => uint256) private _borrowerRiskScores;
-    
+
+    // Events
+    event RiskParametersUpdated(
+        uint256 maxLtv,
+        uint256 minDuration,
+        uint256 maxDuration
+    );
+
     /**
-     * @dev Initializes the risk engine
+     * @dev Constructor
      */
-    function initialize() external override {
+    constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(RISK_MANAGER_ROLE, msg.sender);
     }
-    
+
     /**
-     * @dev See {IRiskEngine-assessRisk}
+     * @dev Initializes the contract
+     */
+    function initialize() external override {
+        // No-op for non-upgradeable version
+        // This is implemented to satisfy the interface
+    }
+
+    /**
+     * @dev Assesses the risk of a loan request
+     * @param collateralToken The address of the collateral token contract
+     * @param collateralTokenId The ID of the collateral token
+     * @param requestedAmount The requested loan amount
+     * @param duration The loan duration in seconds
+     * @return assessment The risk assessment result
      */
     function assessRisk(
-        address borrower,
+        address,  // borrower (unused but kept for interface compatibility)
         address collateralToken,
         uint256 collateralTokenId,
         uint256 requestedAmount,
         uint256 duration
     ) external view override returns (RiskAssessment memory assessment) {
-        // Get collateral value
-        (,,uint256 collateralValue,uint256 expiryDate) = ITokenizedPolicy(collateralToken).getPolicyDetails(collateralTokenId);
-        
-        // Check if policy is valid
-        if (block.timestamp > expiryDate) {
+        require(collateralToken != address(0), "RiskEngine: Zero address");
+        require(requestedAmount > 0, "RiskEngine: Invalid loan amount");
+        require(duration >= MIN_DURATION, "RiskEngine: Duration too short");
+        require(duration <= MAX_DURATION, "RiskEngine: Duration too long");
+
+        // Get policy details
+        (
+            ,  // string memory policyNumber (unused)
+            ,  // address issuer (unused)
+            uint256 collateralValue,
+            uint256 expiryDate,
+            // bytes32 documentHash (unused)
+        ) = ITokenizedPolicy(collateralToken).getPolicyDetails(collateralTokenId);
+
+        // Check policy expiry
+        if (expiryDate <= block.timestamp + duration) {
             return RiskAssessment({
                 approved: false,
                 recommendedLTV: 0,
                 maxLoanAmount: 0,
                 interestRate: 0,
-                reason: "Policy is expired"
+                reason: "Policy expires before loan end"
             });
         }
-        
-        // Get risk params for this collateral
+
+        // Get risk parameters
         CollateralRiskParams memory params = _getCollateralRiskParams(collateralToken);
-        
-        // Calculate max loan amount based on LTV
+
+        // Calculate max loan amount
         uint256 maxLoanAmount = (collateralValue * params.maxLTV) / 10000;
-        
+
         // Check if requested amount exceeds max loan amount
         if (requestedAmount > maxLoanAmount) {
             return RiskAssessment({
@@ -79,27 +110,17 @@ contract RiskEngine is AccessControl, IRiskEngine {
                 reason: "Requested amount exceeds maximum LTV"
             });
         }
-        
-        // Calculate actual LTV for the requested amount
+
+        // Calculate actual LTV
         uint256 actualLTV = (requestedAmount * 10000) / collateralValue;
-        
-        // Calculate interest rate based on LTV ratio and duration
-        // Higher LTV and longer duration = higher interest rate
-        uint256 ltvFactor = (actualLTV * 100) / params.maxLTV; // 0-100 scale
-        uint256 durationFactor = _calculateDurationFactor(duration);
-        
-        // Adjust interest rate based on borrower risk score
-        uint256 borrowerRiskScore = _getBorrowerRiskScore(borrower);
-        
-        // Calculate final interest rate
+
+        // Calculate interest rate
         uint256 interestRate = _calculateInterestRate(
             params.baseInterestRate,
-            ltvFactor,
-            durationFactor,
-            borrowerRiskScore
+            actualLTV,
+            duration
         );
-        
-        // Approve the loan
+
         return RiskAssessment({
             approved: true,
             recommendedLTV: actualLTV,
@@ -108,22 +129,25 @@ contract RiskEngine is AccessControl, IRiskEngine {
             reason: "Loan approved"
         });
     }
-    
+
     /**
-     * @dev See {IRiskEngine-updateRiskParameters}
+     * @dev Updates the risk parameters for a collateral token
+     * @param collateralToken The address of the collateral token contract
+     * @param maxLTV The maximum loan-to-value ratio in basis points
+     * @param liquidationThreshold The liquidation threshold in basis points
+     * @param baseInterestRate The base interest rate in basis points
      */
     function updateRiskParameters(
         address collateralToken,
         uint256 maxLTV,
         uint256 liquidationThreshold,
         uint256 baseInterestRate
-    ) external override {
-        require(hasRole(RISK_MANAGER_ROLE, msg.sender), "RiskEngine: Must have risk manager role");
-        require(collateralToken != address(0), "RiskEngine: Invalid collateral token");
-        require(maxLTV > 0 && maxLTV < 10000, "RiskEngine: Invalid maxLTV");
-        require(liquidationThreshold > maxLTV && liquidationThreshold < 10000, "RiskEngine: Invalid liquidation threshold");
-        require(baseInterestRate < 5000, "RiskEngine: Base interest rate too high");
-        
+    ) external override onlyRole(RISK_MANAGER_ROLE) {
+        require(collateralToken != address(0), "RiskEngine: Zero address");
+        require(maxLTV > 0 && maxLTV <= MAX_LTV, "RiskEngine: Invalid maxLTV");
+        require(liquidationThreshold > maxLTV && liquidationThreshold <= 10000, "RiskEngine: Invalid liquidation threshold");
+        require(baseInterestRate <= 5000, "RiskEngine: Base interest rate too high");
+
         _riskParams[collateralToken] = CollateralRiskParams({
             maxLTV: maxLTV,
             liquidationThreshold: liquidationThreshold,
@@ -131,9 +155,13 @@ contract RiskEngine is AccessControl, IRiskEngine {
             configured: true
         });
     }
-    
+
     /**
-     * @dev See {IRiskEngine-getRiskParameters}
+     * @dev Gets the risk parameters for a collateral token
+     * @param collateralToken The address of the collateral token contract
+     * @return maxLTV The maximum loan-to-value ratio in basis points
+     * @return liquidationThreshold The liquidation threshold in basis points
+     * @return baseInterestRate The base interest rate in basis points
      */
     function getRiskParameters(
         address collateralToken
@@ -149,113 +177,125 @@ contract RiskEngine is AccessControl, IRiskEngine {
             params.baseInterestRate
         );
     }
-    
+
     /**
-     * @dev Update the risk score of a borrower
-     * @param borrower The address of the borrower
-     * @param riskScore The risk score (1-100, higher is better)
+     * @dev Evaluates the risk of a loan
+     * @param collateralToken The address of the collateral token contract
+     * @param collateralTokenId The ID of the collateral token
+     * @param loanAmount The amount of the loan
+     * @param loanDuration The duration of the loan in seconds
+     * @return approved Whether the loan is approved
      */
-    function updateBorrowerRiskScore(address borrower, uint256 riskScore) external {
-        require(hasRole(RISK_MANAGER_ROLE, msg.sender), "RiskEngine: Must have risk manager role");
-        require(borrower != address(0), "RiskEngine: Invalid borrower address");
-        require(riskScore > 0 && riskScore <= 100, "RiskEngine: Risk score must be between 1-100");
-        
-        _borrowerRiskScores[borrower] = riskScore;
+    function evaluateRisk(
+        address collateralToken,
+        uint256 collateralTokenId,
+        uint256 loanAmount,
+        uint256 loanDuration
+    ) external view override returns (bool) {
+        require(collateralToken != address(0), "RiskEngine: Zero address");
+        require(loanAmount > 0, "RiskEngine: Invalid loan amount");
+        require(loanDuration >= MIN_DURATION, "RiskEngine: Duration too short");
+        require(loanDuration <= MAX_DURATION, "RiskEngine: Duration too long");
+
+        // Get policy details
+        (
+            ,  // string memory policyNumber (unused)
+            ,  // address issuer (unused)
+            uint256 collateralValue,
+            uint256 expiryDate,
+            // bytes32 documentHash (unused)
+        ) = ITokenizedPolicy(collateralToken).getPolicyDetails(collateralTokenId);
+
+        // Check policy expiry
+        require(expiryDate > block.timestamp + loanDuration, "RiskEngine: Policy expires before loan end");
+
+        // Calculate LTV
+        uint256 ltv = (loanAmount * 10000) / collateralValue;
+        require(ltv <= MAX_LTV, "RiskEngine: LTV too high");
+
+        // Additional risk checks can be added here
+
+        return true;
     }
-    
+
     /**
-     * @dev Get the risk score of a borrower
-     * @param borrower The address of the borrower
-     * @return riskScore The risk score
+     * @dev Gets the maximum loan-to-value ratio
+     * @return The maximum LTV in basis points
      */
-    function getBorrowerRiskScore(address borrower) external view returns (uint256) {
-        return _getBorrowerRiskScore(borrower);
+    function getMaxLTV() external pure override returns (uint256) {
+        return MAX_LTV;
     }
-    
+
     /**
-     * @dev Internal function to get the risk score of a borrower
-     * @param borrower The address of the borrower
-     * @return riskScore The risk score (defaults to 70 if not set)
+     * @dev Gets the minimum loan duration
+     * @return The minimum duration in seconds
      */
-    function _getBorrowerRiskScore(address borrower) internal view returns (uint256) {
-        uint256 score = _borrowerRiskScores[borrower];
-        return score == 0 ? 70 : score; // Default to 70 if not set
+    function getMinDuration() external pure override returns (uint256) {
+        return MIN_DURATION;
     }
-    
+
     /**
-     * @dev Internal function to get the risk parameters for a collateral
-     * @param collateralToken The address of the collateral token
-     * @return params The collateral risk parameters
+     * @dev Gets the maximum loan duration
+     * @return The maximum duration in seconds
+     */
+    function getMaxDuration() external pure override returns (uint256) {
+        return MAX_DURATION;
+    }
+
+    /**
+     * @dev Gets the risk parameters for a collateral token
+     * @param collateralToken The address of the collateral token contract
+     * @return params The risk parameters
      */
     function _getCollateralRiskParams(address collateralToken) internal view returns (CollateralRiskParams memory) {
         if (_riskParams[collateralToken].configured) {
             return _riskParams[collateralToken];
         }
-        
+
         // Return default parameters if not configured
         return CollateralRiskParams({
-            maxLTV: DEFAULT_MAX_LTV,
+            maxLTV: MAX_LTV,
             liquidationThreshold: DEFAULT_LIQUIDATION_THRESHOLD,
             baseInterestRate: DEFAULT_BASE_INTEREST_RATE,
             configured: false
         });
     }
-    
+
     /**
-     * @dev Internal function to calculate interest rate
+     * @dev Calculates the interest rate for a loan
      * @param baseRate The base interest rate in basis points
-     * @param ltvFactor The LTV factor (0-100 scale)
-     * @param durationFactor The duration factor
-     * @param borrowerRiskScore The borrower risk score (1-100)
-     * @return interestRate The calculated interest rate in basis points
+     * @param ltv The loan-to-value ratio in basis points
+     * @param duration The loan duration in seconds
+     * @return The calculated interest rate in basis points
      */
     function _calculateInterestRate(
         uint256 baseRate,
-        uint256 ltvFactor,
-        uint256 durationFactor,
-        uint256 borrowerRiskScore
+        uint256 ltv,
+        uint256 duration
     ) internal pure returns (uint256) {
-        // Adjust for LTV (higher LTV = higher rate)
+        // Higher LTV = higher rate
+        uint256 ltvFactor = (ltv * 100) / MAX_LTV;
         uint256 ltvAdjustment = (baseRate * ltvFactor) / 100;
-        
-        // Adjust for duration (longer duration = higher rate)
-        uint256 durationAdjustment = (baseRate * durationFactor) / 100;
-        
-        // Adjust for borrower risk (lower score = higher rate)
-        uint256 riskAdjustment = (baseRate * (100 - borrowerRiskScore)) / 100;
-        
-        // Calculate total interest rate (base + adjustments)
-        uint256 totalRate = baseRate + ltvAdjustment + durationAdjustment + riskAdjustment;
-        
-        // Cap the interest rate at a reasonable maximum (30%)
-        return totalRate > 3000 ? 3000 : totalRate;
-    }
-    
-    /**
-     * @dev Calculate the duration factor based on loan duration
-     * @param duration The loan duration in seconds
-     * @return factor The duration factor (0-100 scale)
-     */
-    function _calculateDurationFactor(uint256 duration) internal pure returns (uint256) {
-        // Short-term: 1-7 days
+
+        // Longer duration = higher rate
+        uint256 durationFactor;
         if (duration <= 7 days) {
-            return 10;
+            durationFactor = 10;
+        } else if (duration <= 30 days) {
+            durationFactor = 25;
+        } else if (duration <= 90 days) {
+            durationFactor = 50;
+        } else if (duration <= 180 days) {
+            durationFactor = 75;
+        } else {
+            durationFactor = 100;
         }
-        // Medium-term: 8-30 days
-        else if (duration <= 30 days) {
-            return 25;
-        }
-        // Long-term: 31-90 days
-        else if (duration <= 90 days) {
-            return 50;
-        }
-        // Extended: 91-365 days
-        else if (duration <= 365 days) {
-            return 75;
-        }
-        // Very long-term: over 1 year
-        else {
-            return 100;
-        }
+        uint256 durationAdjustment = (baseRate * durationFactor) / 100;
+
+        // Calculate total rate (base + adjustments)
+        uint256 totalRate = baseRate + ltvAdjustment + durationAdjustment;
+
+        // Cap at 30% APR
+        return totalRate > 3000 ? 3000 : totalRate;
     }
 } 
