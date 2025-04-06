@@ -13,55 +13,93 @@ QuickFi consists of several core components:
 
 ## Architecture
 ```mermaid
-graph TB
-    User((User))
-    Policy[Insurance Policy]
+graph TD
+    %% Core Contracts
+    LO[LoanOrigination]
+    RE[RiskEngine]
+    TP[TokenizedPolicy]
+    MA[MorphoAdapter]
     
-    subgraph QuickFi Platform
-        TP[TokenizedPolicy.sol<br>ERC721 NFT]
-        RE[RiskEngine.sol<br>Risk Assessment]
-        LO[LoanOrigination.sol<br>Loan Management]
-        MA[MorphoAdapter.sol<br>Liquidity Interface]
+    %% Interfaces
+    ILO[ILoanOrigination]
+    IRE[IRiskEngine]
+    ITP[ITokenizedPolicy]
+    IMA[IMorphoAdapter]
+    
+    %% External Protocols & Dependencies
+    MB[Morpho Blue]
+    USDC[USDC Token]
+    
+    %% Interface Implementations
+    ILO --> LO
+    IRE --> RE
+    ITP --> TP
+    IMA --> MA
+    
+    %% Contract Dependencies
+    LO --> RE
+    LO --> MA
+    LO --> TP
+    LO --> USDC
+    
+    RE --> TP
+    MA --> MB
+    MA --> USDC
+    
+    %% Access Control
+    AC[AccessControl]
+    RG[ReentrancyGuard]
+    UP[Upgradeable]
+    
+    AC --> LO
+    AC --> RE
+    AC --> TP
+    AC --> MA
+    
+    RG --> LO
+    RG --> MA
+    
+    UP --> TP
+    
+    %% Contract Features
+    subgraph TokenizedPolicy
+        TP --> NFT[ERC721]
+        TP --> POL[Policy Details]
+        TP --> VAL[Valuation]
     end
     
-    subgraph External
-        MB[Morpho Blue<br>Lending Markets]
-        USDC[USDC Token]
+    subgraph LoanOrigination
+        LO --> LOAN[Loan Management]
+        LO --> RISK[Risk Assessment]
+        LO --> COLL[Collateral Management]
     end
     
-    %% Tokenization Flow
-    User -->|1_Submit_Policy| Policy
-    Policy -->|2_Tokenize| TP
+    subgraph RiskEngine
+        RE --> ASSESS[Risk Assessment]
+        RE --> PARAMS[Risk Parameters]
+        RE --> ORACLE[Price Oracle]
+    end
     
-    %% Loan Request Flow
-    TP -->|3_Use_as_Collateral| RE
-    RE -->|4_Risk_Assessment| LO
-    
-    %% Loan Activation Flow
-    LO -->|5_Approved_Loan| MA
-    MA -->|6_Source_Liquidity| MB
-    MB -->|7_Provide_USDC| MA
-    MA -->|8_Transfer_USDC| LO
-    LO -->|9_Disburse_Loan| User
-    
-    %% Repayment Flow
-    User -->|10_Repay_USDC| LO
-    LO -->|11_Return_Collateral| User
-    
-    %% Styling
-    classDef contract fill:#f9f,stroke:#333,stroke-width:2px
-    classDef external fill:#bbf,stroke:#333,stroke-width:2px
-    classDef user fill:#dfd,stroke:#333,stroke-width:2px
-    
-    class TP,RE,LO,MA contract
-    class MB,USDC external
-    class User user
+    subgraph MorphoAdapter
+        MA --> MARKET[Market Management]
+        MA --> POS[Position Management]
+        MA --> LIQ[Liquidation]
+    end
+
+    %% Contract Roles
+    ROLES[Contract Roles]
+    ROLES --> |ADMIN| LO
+    ROLES --> |LIQUIDATOR| LO
+    ROLES --> |LOAN_MANAGER| LO
+    ROLES --> |MINTER| TP
+    ROLES --> |UPGRADER| TP
+    ROLES --> |RISK_MANAGER| RE
 ```
 
 
 The system is built with a modular architecture:
 
-- `TokenizedPolicy.sol` - ERC721 token for insurance policies (representing Plume)
+- `TokenizedPolicy.sol` - ERC721 token for insurance policies
 - `RiskEngine.sol` - Risk assessment for loan applications (from Perimeter Protocol)
 - `LoanOrigination.sol` - Loan origination and management (from Perimeter Protocol)
 - `MorphoAdapter.sol` - Interface to Morpho Blue for capital sourcing
