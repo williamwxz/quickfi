@@ -18,6 +18,55 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Backend API Endpoints
+
+QuickFi includes several API endpoints to facilitate the tokenization of insurance policies and the loan application process:
+
+### File Upload & Processing
+- **Endpoint**: `/api/upload`
+- **Method**: POST
+- **Description**: Uploads insurance policy documents and extracts metadata.
+- **Request**: Form data with file upload (PDF, images)
+- **Response**: Extracted policy metadata
+
+### Document Validation
+- **Endpoint**: `/api/validate`
+- **Method**: POST
+- **Description**: Validates uploaded insurance policy documents.
+- **Request**: JSON with policy metadata
+- **Response**: Validation status and enriched metadata
+
+### Tokenization
+- **Endpoint**: `/api/tokenize`
+- **Method**: POST
+- **Description**: Mints an NFT representing the insurance policy using Plume Arc.
+- **Request**: JSON with user address and policy metadata
+- **Response**: Tokenized policy details
+
+### Loan Application
+- **Endpoint**: `/api/loan-apply`
+- **Method**: POST
+- **Description**: Processes loan applications using Perimeter Protocol.
+- **Request**: JSON with token details and loan request parameters
+- **Response**: Loan eligibility and terms
+
+### Loan Execution
+- **Endpoint**: `/api/execute-loan`
+- **Method**: POST
+- **Description**: Executes approved loans via Morpho Blue integration.
+- **Request**: JSON with approved loan details
+- **Response**: Executed loan details
+
+## Architecture
+
+QuickFi uses a modular architecture that integrates several DeFi protocols:
+
+1. **Plume Arc/Nexus**: For tokenizing and valuing insurance policies
+2. **Perimeter Protocol**: For risk assessment and loan origination
+3. **Morpho Blue**: For loan execution and management
+
+The backend API is built using Next.js API routes, making it easy to deploy on Vercel.
+
 ## Environment Variables
 
 This project uses RainbowKit for wallet connection, which requires a WalletConnect project ID for its integration:
