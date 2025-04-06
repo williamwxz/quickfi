@@ -10,7 +10,7 @@ import { useAccount } from 'wagmi';
 
 export default function TokenizePage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
   
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);

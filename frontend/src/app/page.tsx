@@ -1,7 +1,6 @@
 import MainLayout from '@/components/layout/MainLayout';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function Home() {
   return (
@@ -102,7 +101,7 @@ export default function Home() {
                   </div>
                 </div>
                 <h3 className="card-title justify-center mb-2">Tokenize Your Policy</h3>
-                <p className="text-center">Upload your insurance policy document and we'll tokenize it as an ERC-721 NFT using Plume Arc/Nexus.</p>
+                <p className="text-center">Upload your insurance policy document and we&apos;ll tokenize it as an ERC-721 NFT using Plume Arc/Nexus.</p>
               </div>
             </div>
             
@@ -283,7 +282,7 @@ export default function Home() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Low Fees</h3>
-                <p className="text-white/80">Benefit from Pharos Network's ultra-low transaction fees</p>
+                <p className="text-white/80">Benefit from Pharos Network&apos;s ultra-low transaction fees</p>
               </div>
             </div>
           </div>

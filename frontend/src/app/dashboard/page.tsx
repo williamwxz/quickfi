@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount } from 'wagmi';
+import Image from 'next/image';
 
 // Mock data interfaces
 interface InsurancePolicy {
@@ -169,7 +170,7 @@ export default function DashboardPage() {
           <div>
             {mockLoans.length === 0 ? (
               <div className="text-center py-10">
-                <p className="mb-4">You don't have any active loans.</p>
+                <p className="mb-4">You don&apos;t have any active loans.</p>
                 <Button onClick={() => router.push('/loan')}>
                   Apply for a Loan
                 </Button>
@@ -187,10 +188,12 @@ export default function DashboardPage() {
                           <h3 className="font-semibold mb-4">Collateral</h3>
                           {policy && (
                             <div className="flex items-center">
-                              <img
-                                src={policy.imageUrl}
+                              <Image 
+                                src={policy.imageUrl} 
                                 alt={policy.name}
-                                className="w-16 h-16 rounded-md object-cover mr-4"
+                                width={100}
+                                height={100}
+                                className="rounded-lg"
                               />
                               <div>
                                 <p className="font-medium">{policy.name}</p>
@@ -291,7 +294,7 @@ export default function DashboardPage() {
           <div>
             {mockPolicies.length === 0 ? (
               <div className="text-center py-10">
-                <p className="mb-4">You don't have any tokenized policies.</p>
+                <p className="mb-4">You don&apos;t have any tokenized policies.</p>
                 <Button onClick={() => router.push('/tokenize')}>
                   Tokenize a Policy
                 </Button>
@@ -302,10 +305,12 @@ export default function DashboardPage() {
                   <Card key={policy.id} className="shadow-sm">
                     <div className="p-6">
                       <div className="flex">
-                        <img
-                          src={policy.imageUrl}
+                        <Image 
+                          src={policy.imageUrl} 
                           alt={policy.name}
-                          className="w-20 h-20 rounded-md object-cover mr-4"
+                          width={100}
+                          height={100}
+                          className="rounded-lg"
                         />
                         <div>
                           <h3 className="font-semibold">{policy.name}</h3>

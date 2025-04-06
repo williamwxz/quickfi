@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAccount } from 'wagmi';
+import Image from 'next/image';
 
 // Interfaces for our data types
 interface InsurancePolicy {
@@ -19,7 +20,7 @@ interface InsurancePolicy {
 
 export default function LoanPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
   
   const [step, setStep] = useState(1); // 1: Select Policy, 2: Loan Amount, 3: Confirmation
   const [isLoading, setIsLoading] = useState(false);
@@ -158,7 +159,7 @@ export default function LoanPage() {
                 
                 {mockPolicies.length === 0 ? (
                   <div className="text-center py-10">
-                    <p className="mb-4">You don't have any tokenized insurance policies yet.</p>
+                    <p className="mb-4">You don&apos;t have any tokenized insurance policies yet.</p>
                     <Button onClick={() => router.push('/tokenize')}>
                       Tokenize a Policy
                     </Button>
@@ -180,10 +181,12 @@ export default function LoanPage() {
                           onClick={() => handlePolicySelect(policy)}
                         >
                           <div className="flex-shrink-0 mr-4">
-                            <img
-                              src={policy.imageUrl}
+                            <Image 
+                              src={policy.imageUrl} 
                               alt={policy.name}
-                              className="w-16 h-16 rounded-md object-cover"
+                              width={100}
+                              height={100}
+                              className="rounded-lg"
                             />
                           </div>
                           
@@ -228,10 +231,12 @@ export default function LoanPage() {
                   <div className="p-4 bg-base-200 rounded-lg mb-6">
                     <h3 className="font-medium mb-2">Selected Collateral</h3>
                     <div className="flex items-center">
-                      <img
-                        src={selectedPolicy.imageUrl}
+                      <Image 
+                        src={selectedPolicy.imageUrl} 
                         alt={selectedPolicy.name}
-                        className="w-12 h-12 rounded-md object-cover mr-4"
+                        width={100}
+                        height={100}
+                        className="rounded-lg"
                       />
                       <div>
                         <p className="font-medium">{selectedPolicy.name}</p>
