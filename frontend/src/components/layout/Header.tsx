@@ -12,6 +12,7 @@ export default function Header() {
     { label: 'Tokenize Policy', href: '/tokenize' },
     { label: 'Get Loan', href: '/loan' },
     { label: 'Dashboard', href: '/dashboard' },
+    { label: 'FAQ', href: '/help' },
   ];
   
   return (

@@ -39,7 +39,7 @@ QuickFi includes several API endpoints to facilitate the tokenization of insuran
 ### Tokenization
 - **Endpoint**: `/api/tokenize`
 - **Method**: POST
-- **Description**: Mints an NFT representing the insurance policy using Plume Arc.
+- **Description**: Mints an NFT representing the insurance policy using a custom ERC721 contract.
 - **Request**: JSON with user address and policy metadata
 - **Response**: Tokenized policy details
 
@@ -61,7 +61,7 @@ QuickFi includes several API endpoints to facilitate the tokenization of insuran
 
 QuickFi uses a modular architecture that integrates several DeFi protocols:
 
-1. **Plume Arc/Nexus**: For tokenizing and valuing insurance policies
+1. **Custom ERC721 Tokenization**: For tokenizing and valuing insurance policies
 2. **Perimeter Protocol**: For risk assessment and loan origination
 3. **Morpho Blue**: For loan execution and management
 

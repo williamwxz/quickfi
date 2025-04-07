@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
+import { InsurancePolicyTokenABI } from '../../../config/abi';
 
-// Mock Plume Arc ABI - in a real implementation, you would have the actual ABI
-const plumeArcABI = [
-  "function mintPolicyToken(address to, string memory tokenURI, uint256 policyValue, uint256 expiryTimestamp, bytes memory metadata) external returns (uint256)",
-  "function getPolicyTokenDetails(uint256 tokenId) external view returns (address owner, uint256 value, uint256 expiryTimestamp)"
-];
-
-// Mock environment variables
-const PLUME_ARC_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_PLUME_ARC_CONTRACT_ADDRESS || "0x8B5CF6696FbFc30B7a8ABCB8E4E1cb73416Ed96b";
+// Environment variables
+const INSURANCE_POLICY_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS || "0x8B5CF6696FbFc30B7a8ABCB8E4E1cb73416Ed96b";
 const PHAROS_RPC_URL = process.env.PHAROS_RPC_URL || "https://rpc.pharosnet.io";
 
 export async function POST(req: NextRequest) {
@@ -45,13 +40,13 @@ export async function POST(req: NextRequest) {
     const tokenDetails = {
       tokenId,
       owner: userAddress,
-      contractAddress: PLUME_ARC_CONTRACT_ADDRESS,
+      contractAddress: INSURANCE_POLICY_TOKEN_ADDRESS,
       policyValue: policyMetadata.declaredValue,
       expiryTimestamp,
       tokenURI,
       txHash,
-      // Mock Plume Nexus valuation (in a real implementation, this would come from the Plume Nexus system)
-      nexusValuation: Math.floor(Number(policyMetadata.declaredValue) * 0.85) // 85% of declared value
+      // Custom policy valuation (in a real implementation, this would come from an external source or formula)
+      valuation: Math.floor(Number(policyMetadata.declaredValue) * 0.85) // 85% of declared value
     };
     
     // Return the tokenized policy details

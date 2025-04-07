@@ -140,7 +140,10 @@ export default function LoanPage() {
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold mb-8 text-center">Get a USDC Loan</h1>
+        <h1 className="text-3xl font-bold mb-2 text-center">Get a USDC Loan</h1>
+        <p className="text-center text-neutral-content max-w-2xl mx-auto mb-10">
+          Use your tokenized insurance policies as collateral to obtain an instant USDC loan on the Pharos Network.
+        </p>
         
         <div className="max-w-3xl mx-auto">
           {/* Progress Steps */}
@@ -187,6 +190,8 @@ export default function LoanPage() {
                               width={100}
                               height={100}
                               className="rounded-lg"
+                              sizes="100px"
+                              priority
                             />
                           </div>
                           
@@ -237,6 +242,8 @@ export default function LoanPage() {
                         width={100}
                         height={100}
                         className="rounded-lg"
+                        sizes="100px"
+                        priority
                       />
                       <div>
                         <p className="font-medium">{selectedPolicy.name}</p>

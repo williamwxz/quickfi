@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     // For this mock, we'll simulate the risk assessment
     
     // Determine if loan amount is reasonable based on some simple rules
-    const mockCollateralValue = 100000; // This would come from Plume Nexus in real implementation
+    const mockCollateralValue = 100000; // This would come from our own custom valuation in real implementation
     const maxLTV = 0.7; // 70% max Loan-to-Value ratio
     const maxLoanAmount = mockCollateralValue * maxLTV;
     

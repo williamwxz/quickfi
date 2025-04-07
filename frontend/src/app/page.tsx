@@ -10,11 +10,12 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="md:w-1/2 text-center md:text-left">
-              <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-                Unlock Liquidity from Your Insurance Policies
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+                Tokenize Insurance.<br />
+                <span className="text-secondary-focus">Unlock Capital.</span>
               </h1>
               <p className="text-lg md:text-xl max-w-2xl mb-8 text-white/90">
-                QuickFi is a decentralized micro-loan platform that enables you to obtain USDC loans backed by your tokenized insurance policies.
+                QuickFi is a decentralized micro-loan platform that enables you to obtain USDC loans backed by your tokenized insurance policies on the Pharos Network.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
                 <Link href="/tokenize">
@@ -101,7 +102,7 @@ export default function Home() {
                   </div>
                 </div>
                 <h3 className="card-title justify-center mb-2">Tokenize Your Policy</h3>
-                <p className="text-center">Upload your insurance policy document and we&apos;ll tokenize it as an ERC-721 NFT using Plume Arc/Nexus.</p>
+                <p className="text-center">Upload your insurance policy document and we&apos;ll tokenize it as an ERC-721 NFT on the blockchain.</p>
               </div>
             </div>
             
@@ -173,8 +174,8 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h3 className="card-title">Plume Arc/Nexus</h3>
-                <p>Advanced platform for tokenizing and valuing insurance policies</p>
+                <h3 className="card-title">QuickFi Tokenization</h3>
+                <p>Custom ERC721 tokenization of insurance policies with secure valuation</p>
               </div>
             </div>
             

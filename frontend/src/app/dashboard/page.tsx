@@ -107,8 +107,8 @@ export default function DashboardPage() {
       <MainLayout>
         <div className="container mx-auto px-4 py-20 text-center">
           <h1 className="text-3xl font-bold mb-6">Connect Your Wallet</h1>
-          <p className="mb-8">
-            Please connect your wallet to view your dashboard.
+          <p className="mb-8 max-w-md mx-auto">
+            Please connect your wallet to view your dashboard and manage your tokenized policies and loans.
           </p>
           <div className="flex justify-center">
             {/* The RainbowKit ConnectButton will be visible in the header */}
@@ -121,7 +121,10 @@ export default function DashboardPage() {
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold mb-8">My Dashboard</h1>
+        <h1 className="text-3xl font-bold mb-2">My Dashboard</h1>
+        <p className="text-neutral-content max-w-2xl mb-8">
+          Manage your tokenized insurance policies and active loans from one place.
+        </p>
         
         {/* Wallet Info */}
         <Card className="mb-8">
@@ -194,6 +197,8 @@ export default function DashboardPage() {
                                 width={100}
                                 height={100}
                                 className="rounded-lg"
+                                sizes="100px"
+                                priority
                               />
                               <div>
                                 <p className="font-medium">{policy.name}</p>
@@ -311,6 +316,8 @@ export default function DashboardPage() {
                           width={100}
                           height={100}
                           className="rounded-lg"
+                          sizes="100px"
+                          priority
                         />
                         <div>
                           <h3 className="font-semibold">{policy.name}</h3>

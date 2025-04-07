@@ -3,8 +3,10 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../interfaces/IMorphoAdapter.sol";
 import "../interfaces/ILoanOrigination.sol";
 
@@ -15,9 +17,16 @@ import "../interfaces/ILoanOrigination.sol";
  * Note: This is a simplified implementation for demonstration purposes.
  * In a production environment, you would need to integrate with the actual Morpho Blue contracts.
  */
-contract MorphoAdapter is IMorphoAdapter, AccessControl, ReentrancyGuard {
+contract MorphoAdapter is 
+    Initializable,
+    IMorphoAdapter, 
+    AccessControlUpgradeable, 
+    ReentrancyGuardUpgradeable, 
+    PausableUpgradeable 
+{
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant LOAN_ORIGINATOR_ROLE = keccak256("LOAN_ORIGINATOR_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     
     // Addresses
     address public loanOrigination;
@@ -31,22 +40,29 @@ contract MorphoAdapter is IMorphoAdapter, AccessControl, ReentrancyGuard {
         bool isDeposited;      // Whether the collateral is deposited
     }
     
-    // Mapping from loan ID to collateral info
+    // Mappings
     mapping(uint256 => CollateralInfo) private _collaterals;
-    
-    // Mapping from loan ID to borrowed amount
     mapping(uint256 => uint256) private _borrowedAmounts;
-    
-    // Mapping from loan ID to repaid amount
     mapping(uint256 => uint256) private _repaidAmounts;
     
     // Events
     event LoanOriginatorUpdated(address indexed oldOriginator, address indexed newOriginator);
     event USDCTokenUpdated(address indexed oldToken, address indexed newToken);
+    event ContractPaused(address account);
+    event ContractUnpaused(address account);
     
-    constructor(address _loanOrigination, address _usdcToken) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _loanOrigination, address _usdcToken) public initializer {
         require(_loanOrigination != address(0), "MorphoAdapter: Loan origination cannot be zero address");
         require(_usdcToken != address(0), "MorphoAdapter: USDC token cannot be zero address");
+        
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
         
         loanOrigination = _loanOrigination;
         usdcToken = _usdcToken;
@@ -54,6 +70,7 @@ contract MorphoAdapter is IMorphoAdapter, AccessControl, ReentrancyGuard {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(LOAN_ORIGINATOR_ROLE, _loanOrigination);
+        _grantRole(PAUSER_ROLE, msg.sender);
     }
     
     /**
@@ -300,5 +317,15 @@ contract MorphoAdapter is IMorphoAdapter, AccessControl, ReentrancyGuard {
         uint256 _outstanding = _borrowed > _repaid ? _borrowed - _repaid : 0;
         
         return (_borrowed, _repaid, _outstanding);
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+        emit ContractPaused(msg.sender);
+    }
+
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
+        emit ContractUnpaused(msg.sender);
     }
 } 

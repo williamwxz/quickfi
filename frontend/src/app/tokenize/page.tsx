@@ -46,8 +46,10 @@ export default function TokenizePage() {
     setIsLoading(true);
     
     try {
-      // TODO: Replace with actual API call to backend
-      // This is a placeholder for the actual tokenization process
+      // This would be the actual API call to tokenize the insurance policy
+      // using our custom ERC721 contract
+      
+      // Mock API call with delay
       await new Promise((resolve) => setTimeout(resolve, 2000));
       
       // Move to the next step after successful submission
@@ -62,7 +64,10 @@ export default function TokenizePage() {
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold mb-8 text-center">Tokenize Your Insurance Policy</h1>
+        <h1 className="text-3xl font-bold mb-2 text-center">Tokenize Your Insurance Policy</h1>
+        <p className="text-center text-neutral-content max-w-2xl mx-auto mb-10">
+          Convert your insurance policy into a digital asset on the blockchain. This NFT token can be used as collateral for loans.
+        </p>
         
         <div className="max-w-2xl mx-auto">
           {/* Progress Steps */}
