@@ -11,6 +11,24 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  // Add support for app subdomain routing
+  async rewrites() {
+    return {
+      beforeFiles: [
+        // If hostname starts with 'app.', route to the /app directory
+        {
+          source: '/:path*',
+          has: [
+            {
+              type: 'host',
+              value: 'app.:domain*',
+            },
+          ],
+          destination: '/app/:path*',
+        },
+      ],
+    };
+  },
 };
 
 module.exports = nextConfig; 

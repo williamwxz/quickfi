@@ -1,14 +1,16 @@
 'use client';
 
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export default function Header() {
+export default function AppHeader() {
   const pathname = usePathname();
   
   const navItems = [
-    { label: 'Home', href: '/' },
-    { label: 'FAQ', href: '/help' },
+    { label: 'Dashboard', href: '/app/dashboard' },
+    { label: 'Tokenize Policy', href: '/app/tokenize' },
+    { label: 'Get Loan', href: '/app/loan' },
   ];
   
   return (
@@ -39,14 +41,12 @@ export default function Header() {
           </div>
           
           <div className="flex items-center">
-            <Link href="/app" className="btn btn-primary">
-              Open App
-            </Link>
+            <ConnectButton />
           </div>
           
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center">
-            <label htmlFor="mobile-menu" className="btn btn-ghost btn-circle">
+            <label htmlFor="app-mobile-menu" className="btn btn-ghost btn-circle">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-5 h-5 stroke-current">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
               </svg>
@@ -57,9 +57,9 @@ export default function Header() {
       
       {/* Mobile Menu Drawer */}
       <div className="md:hidden">
-        <input id="mobile-menu" type="checkbox" className="drawer-toggle" />
+        <input id="app-mobile-menu" type="checkbox" className="drawer-toggle" />
         <div className="drawer-side z-50">
-          <label htmlFor="mobile-menu" className="drawer-overlay"></label>
+          <label htmlFor="app-mobile-menu" className="drawer-overlay"></label>
           <ul className="menu p-4 w-80 h-full bg-base-100 text-neutral">
             {navItems.map((item) => (
               <li key={item.href}>
@@ -71,9 +71,9 @@ export default function Header() {
                 </Link>
               </li>
             ))}
-            <li className="mt-4">
-              <Link href="/app" className="bg-primary text-white hover:bg-primary-focus">
-                Open App
+            <li className="mt-4 border-t pt-4">
+              <Link href="/" className="text-neutral">
+                Return to Main Site
               </Link>
             </li>
           </ul>
