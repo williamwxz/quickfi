@@ -115,7 +115,7 @@ export default function HelpPage() {
           <div className="mt-12 text-center">
             <h2 className="text-2xl font-bold mb-4">Still Have Questions?</h2>
             <p className="mb-6 max-w-xl mx-auto">
-              If you couldn't find the answer to your question, feel free to reach out to our support team.
+              If you couldn&apos;t find the answer to your question, feel free to reach out to our support team.
             </p>
             <a
               href="mailto:support@quickfi.io"

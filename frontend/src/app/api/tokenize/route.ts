@@ -1,63 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ethers } from 'ethers';
-import { InsurancePolicyTokenABI } from '../../../config/abi';
 
-// Environment variables
-const INSURANCE_POLICY_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS || "0x8B5CF6696FbFc30B7a8ABCB8E4E1cb73416Ed96b";
-const PHAROS_RPC_URL = process.env.PHAROS_RPC_URL || "https://rpc.pharosnet.io";
+// Simplified contract address from environment
+const TOKEN_CONTRACT_ADDRESS = process.env.TOKEN_CONTRACT_ADDRESS || "0x1234567890123456789012345678901234567890";
 
-export async function POST(req: NextRequest) {
+// API route handler
+export async function POST(request: NextRequest) {
   try {
-    const data = await req.json();
-    
-    // Extract the necessary data
-    const { userAddress, policyMetadata } = data;
-    
-    if (!userAddress || !policyMetadata) {
+    // Parse request body
+    const body = await request.json();
+    const { policyNumber, faceValue, issuer, expiryDate, policyType, documentHash } = body;
+
+    // Validate required fields
+    if (!policyNumber || !faceValue || !issuer || !expiryDate || !policyType) {
       return NextResponse.json(
-        { error: 'Missing required data' },
+        { error: "Missing required policy information" },
         { status: 400 }
       );
     }
+
+    // Simulate tokenization process
+    // In a real implementation, this would interact with the blockchain
     
-    // In a real implementation, this would use a private key from env
-    // For this mock, we'll just simulate the tokenization
+    // Generate a token ID
+    const tokenId = Math.floor(Date.now() / 1000);
     
-    // Create a mock token ID
-    const tokenId = Math.floor(Math.random() * 1000000);
-    
-    // Calculate policy expiry timestamp
-    const expiryDate = new Date(policyMetadata.expiryDate);
-    const expiryTimestamp = Math.floor(expiryDate.getTime() / 1000);
-    
-    // Simulate a blockchain transaction
-    const txHash = '0x' + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-    
-    // Mock token URI (would point to IPFS in real implementation)
-    const tokenURI = `ipfs://Qm${[...Array(44)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')}`;
-    
-    // Mock the response from the smart contract
-    const tokenDetails = {
-      tokenId,
-      owner: userAddress,
-      contractAddress: INSURANCE_POLICY_TOKEN_ADDRESS,
-      policyValue: policyMetadata.declaredValue,
-      expiryTimestamp,
-      tokenURI,
-      txHash,
-      // Custom policy valuation (in a real implementation, this would come from an external source or formula)
-      valuation: Math.floor(Number(policyMetadata.declaredValue) * 0.85) // 85% of declared value
-    };
-    
-    // Return the tokenized policy details
+    // Mock successful tokenization
     return NextResponse.json({
-      message: 'Policy successfully tokenized',
-      token: tokenDetails
+      success: true,
+      tokenId,
+      contractAddress: TOKEN_CONTRACT_ADDRESS,
+      policyDetails: {
+        policyNumber,
+        faceValue,
+        issuer,
+        expiryDate,
+        policyType,
+        documentHash: documentHash || "No document hash provided"
+      },
+      tokenizedDate: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error tokenizing policy:', error);
+    console.error("Error tokenizing policy:", error);
     return NextResponse.json(
-      { error: 'Error tokenizing policy' },
+      { error: "Failed to tokenize insurance policy" },
       { status: 500 }
     );
   }

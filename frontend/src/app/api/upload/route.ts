@@ -1,45 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Mock function for OCR/NLP document processing
-async function processDocument(file: any): Promise<any> {
-  // In a real implementation, this would use an OCR/NLP service
-  // For now, we'll return mock data
-  return {
-    policyNumber: 'POL-' + Math.floor(Math.random() * 1000000),
-    insurer: 'Sample Insurance Co.',
-    policyType: 'Life Insurance',
-    declaredValue: Math.floor(Math.random() * 1000000) + 10000,
-    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    documentHash: '0x' + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join(''),
-  };
+// Define interface for file metadata
+interface FileMetadata {
+  name: string;
+  size: number;
+  type: string;
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    // In a real implementation, we would use formidable or similar to parse the form data
-    // For this example, we'll simulate a successful file upload
-    const formData = await req.formData();
-    const file = formData.get('file');
+    // Process the form data
+    const formData = await request.formData();
     
-    if (!file) {
+    // Get the uploaded file
+    const uploadedFile = formData.get('file');
+    
+    if (!uploadedFile) {
       return NextResponse.json(
         { error: 'No file uploaded' },
         { status: 400 }
       );
     }
     
-    // Process the document to extract metadata (mock function for now)
-    const documentMetadata = await processDocument(file);
+    // Process file as needed
+    // In a real implementation, you would upload to a service like S3, Cloudinary, or IPFS
     
-    // Return the metadata
+    // Mock response with document hash and URL
+    const documentHash = 'ipfs://Qm' + Math.random().toString(36).substring(2, 15);
+    const documentUrl = 'https://example.com/documents/' + Math.random().toString(36).substring(2, 15);
+    
+    // Mock file metadata
+    const metadata: FileMetadata = {
+      name: 'policy-document.pdf',
+      size: 1024 * 1024 * 2, // 2MB
+      type: 'application/pdf'
+    };
+    
     return NextResponse.json({
-      message: 'File uploaded successfully',
-      metadata: documentMetadata,
+      success: true,
+      documentHash,
+      documentUrl,
+      metadata
     });
   } catch (error) {
     console.error('Error uploading file:', error);
     return NextResponse.json(
-      { error: 'Error uploading file' },
+      { error: 'Failed to upload file' },
       { status: 500 }
     );
   }
