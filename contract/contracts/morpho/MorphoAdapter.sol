@@ -135,7 +135,7 @@ contract MorphoAdapter is
         require(amount > 0, "MorphoAdapter: Amount must be greater than zero");
         require(_collaterals[loanId].isDeposited, "MorphoAdapter: Collateral not deposited");
         
-        // In a real implementation, this would interact with Morpho Blue's market to borrow USDC
+        // TODO: In a real implementation, this would interact with Morpho Blue's market to borrow USDC
         // For this demo, we simulate it
         
         // Check if USDC contract has enough balance

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "./utils/ServiceConfiguration.sol";
 import "./tokenization/TokenizedPolicyFactory.sol";
 import "./loan/RiskEngineProxy.sol";
@@ -12,13 +13,14 @@ import "./interfaces/ITokenizedPolicy.sol";
 /**
  * @title QuickFiDeployer
  * @dev Master deployer for coordinating the deployment of the QuickFi protocol
- * Uses beacon proxies pattern for TokenizedPolicy and transparent proxy for RiskEngine
+ * Uses non-upgradeable pattern for TokenizedPolicy and transparent proxy for RiskEngine
+ * and TokenizedPolicyFactory
  */
 contract QuickFiDeployer is Ownable {
     // Service configuration
     ServiceConfiguration public serviceConfiguration;
     
-    // Proxy admin for RiskEngine
+    // Proxy admin for proxies
     ProxyAdmin public proxyAdmin;
     
     // Factory for TokenizedPolicy
@@ -54,31 +56,39 @@ contract QuickFiDeployer is Ownable {
     
     /**
      * @dev Sets up the protocol components
-     * @param tokenizedPolicyImpl The TokenizedPolicy implementation address
+     * @param factoryImpl The TokenizedPolicyFactory implementation address
      * @param riskEngineImpl The RiskEngine implementation address
      */
     function setupProtocol(
-        address tokenizedPolicyImpl,
+        address factoryImpl,
         address riskEngineImpl
     ) external onlyOwner {
-        require(tokenizedPolicyImpl != address(0), "QuickFiDeployer: Zero address");
+        require(factoryImpl != address(0), "QuickFiDeployer: Zero address");
         require(riskEngineImpl != address(0), "QuickFiDeployer: Zero address");
         
-        // Create the TokenizedPolicy factory
-        tokenizedPolicyFactory = new TokenizedPolicyFactory(
-            address(serviceConfiguration),
-            tokenizedPolicyImpl
+        // Deploy TokenizedPolicyFactory proxy
+        bytes memory factoryInitData = abi.encodeWithSelector(
+            TokenizedPolicyFactory(factoryImpl).initialize.selector,
+            address(serviceConfiguration)
         );
         
+        address factoryProxy = address(new TransparentUpgradeableProxy(
+            factoryImpl,
+            address(proxyAdmin),
+            factoryInitData
+        ));
+        
+        tokenizedPolicyFactory = TokenizedPolicyFactory(factoryProxy);
+        
         // Deploy RiskEngine proxy
-        bytes memory initData = abi.encodeWithSelector(
+        bytes memory riskEngineInitData = abi.encodeWithSelector(
             bytes4(keccak256("initialize()"))
         );
         
         riskEngine = address(new RiskEngineProxy(
             riskEngineImpl,
             address(proxyAdmin),
-            initData
+            riskEngineInitData
         ));
         
         // Register factory as deployer
