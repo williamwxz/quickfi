@@ -3,82 +3,94 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { MenuIcon, X } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { cn } from '@/lib/utils';
 
 export default function AppHeader() {
   const pathname = usePathname();
-  
-  const navItems = [
-    { label: 'Dashboard', href: '/app/dashboard' },
-    { label: 'Tokenize Policy', href: '/app/tokenize' },
-    { label: 'Get Loan', href: '/app/loan' },
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navigation = [
+    { name: 'Tokenize', href: '/app/tokenize' },
+    { name: 'Loan', href: '/app/loan' },
+    { name: 'Dashboard', href: '/app/dashboard' },
+    { name: 'FAQ', href: '/app/faq' },
   ];
-  
+
   return (
-    <header className="bg-base-100 shadow-md">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="text-xl font-bold text-primary">
-              QuickFi
-            </Link>
-            
-            <nav className="hidden md:flex ml-10">
-              <ul className="flex gap-6">
-                {navItems.map((item) => (
-                  <li key={item.href}>
-                    <Link 
-                      href={item.href} 
-                      className={`hover:text-primary transition-colors ${
-                        pathname === item.href ? 'text-primary font-medium' : 'text-neutral'
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </div>
-          
+    <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b">
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <ConnectButton />
+            <Link href="/" className="flex items-center space-x-2">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1D4ED8] to-purple-600 flex items-center justify-center shadow-md">
+                <span className="text-white font-bold text-sm">QF</span>
+              </div>
+              <span className="font-bold text-xl text-gray-900">QuickFi</span>
+            </Link>
           </div>
-          
-          {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center">
-            <label htmlFor="app-mobile-menu" className="btn btn-ghost btn-circle">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-5 h-5 stroke-current">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
-              </svg>
-            </label>
-          </div>
-        </div>
-      </div>
-      
-      {/* Mobile Menu Drawer */}
-      <div className="md:hidden">
-        <input id="app-mobile-menu" type="checkbox" className="drawer-toggle" />
-        <div className="drawer-side z-50">
-          <label htmlFor="app-mobile-menu" className="drawer-overlay"></label>
-          <ul className="menu p-4 w-80 h-full bg-base-100 text-neutral">
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link 
-                  href={item.href} 
-                  className={pathname === item.href ? 'text-primary font-medium' : ''}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-            <li className="mt-4 border-t pt-4">
-              <Link href="/" className="text-neutral">
-                Return to Main Site
+
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-8">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  pathname === item.href
+                    ? "text-blue-600"
+                    : "text-gray-600 hover:text-gray-900"
+                )}
+              >
+                {item.name}
               </Link>
-            </li>
-          </ul>
+            ))}
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="hidden md:block">
+              <ConnectButton />
+            </div>
+
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Mobile Navigation Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t">
+          <div className="container mx-auto px-4 py-4 space-y-4 flex flex-col">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "px-3 py-2 rounded-md",
+                  pathname === item.href ? "bg-blue-50 text-blue-600" : "hover:bg-gray-100"
+                )}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {item.name}
+              </Link>
+            ))}
+            <div className="pt-4">
+              <ConnectButton />
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
-} 
+}

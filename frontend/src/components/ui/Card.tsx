@@ -1,47 +1,108 @@
+import { cn } from "@/lib/utils";
 import { ReactNode } from 'react';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  title?: string;
-  subtitle?: string;
-  className?: string;
-  bordered?: boolean;
-  compact?: boolean;
-  hoverable?: boolean;
 }
 
-export default function Card({
+const Card = ({
+  className,
   children,
-  title,
-  subtitle,
-  className = '',
-  bordered = true,
-  compact = false,
-  hoverable = false,
-}: CardProps) {
+  ...props
+}: CardProps) => {
   return (
     <div
-      className={`
-        card bg-base-100
-        ${bordered ? 'border border-base-300' : ''}
-        ${compact ? 'card-compact' : 'card-normal'}
-        ${hoverable ? 'hover:shadow-md transition-shadow' : ''}
-        ${className}
-      `}
+      className={cn(
+        "rounded-lg border bg-card text-card-foreground shadow-sm",
+        className
+      )}
+      {...props}
     >
-      {(title || subtitle) && (
-        <div className="card-body">
-          {title && <h2 className="card-title">{title}</h2>}
-          {subtitle && <p className="text-sm text-neutral-content">{subtitle}</p>}
-          {children}
-        </div>
-      )}
-      
-      {!title && !subtitle && (
-        <div className="card-body">
-          {children}
-        </div>
-      )}
+      {children}
     </div>
   );
-} 
+};
+
+const CardHeader = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div
+      className={cn("flex flex-col space-y-1.5 p-6", className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
+
+const CardTitle = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement>) => {
+  return (
+    <h3
+      className={cn(
+        "text-2xl font-semibold leading-none tracking-tight",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </h3>
+  );
+};
+
+const CardDescription = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement>) => {
+  return (
+    <p
+      className={cn("text-sm text-muted-foreground", className)}
+      {...props}
+    >
+      {children}
+    </p>
+  );
+};
+
+const CardContent = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div className={cn("p-6 pt-0", className)} {...props}>
+      {children}
+    </div>
+  );
+};
+
+const CardFooter = ({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div
+      className={cn("flex items-center p-6 pt-0", className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardDescription,
+  CardContent,
+}; 

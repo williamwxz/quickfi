@@ -1,0 +1,4 @@
+/* Global overrides for RainbowKit and other components */
+
+/* We're removing all the overrides that might be causing the weird box issue */
+/* The default RainbowKit styles should work fine without these overrides */

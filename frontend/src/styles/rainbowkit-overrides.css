@@ -1,0 +1,18 @@
+/* RainbowKit Modal Positioning Overrides */
+
+/* Only set z-index to ensure modal appears above other content */
+[data-rk] {
+  --rk-z-index: 9999;
+}
+
+/* Ensure the modal content is visible */
+[data-rk] div[role="dialog"] * {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Ensure wallet list is properly sized */
+[data-rk] ul {
+  max-height: 60vh;
+  overflow-y: auto;
+}

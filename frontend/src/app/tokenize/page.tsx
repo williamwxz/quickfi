@@ -1,7 +1,7 @@
 'use client';
 
 import MainLayout from '@/components/layout/MainLayout';
-import Button from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import FileUpload from '@/components/ui/FileUpload';
 import { useState } from 'react';

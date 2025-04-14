@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 export default function Header() {
   const pathname = usePathname();
@@ -39,8 +41,10 @@ export default function Header() {
           </div>
           
           <div className="flex items-center">
-            <Link href="/app" className="btn btn-primary">
-              Open App
+            <Link href="/app">
+              <Button className="bg-primary hover:bg-primary/90 text-white font-medium">
+                Open App <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
             </Link>
           </div>
           
@@ -72,8 +76,10 @@ export default function Header() {
               </li>
             ))}
             <li className="mt-4">
-              <Link href="/app" className="bg-primary text-white hover:bg-primary-focus">
-                Open App
+              <Link href="/app">
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white font-medium">
+                  Open App <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
               </Link>
             </li>
           </ul>

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import AppHeader from './AppHeader';
-import Footer from './Footer';
+import AppFooter from './AppFooter';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -13,7 +13,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <main className="flex-grow">
         {children}
       </main>
-      <Footer />
+      <AppFooter />
     </div>
   );
 } 
