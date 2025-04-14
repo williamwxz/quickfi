@@ -3,7 +3,6 @@
 import { Web3Provider } from "@/providers/web3Provider";
 import AppLayout from "@/components/layout/AppLayout";
 
-
 export default function AppRootLayout({
   children,
 }: {
