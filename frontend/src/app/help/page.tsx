@@ -1,7 +1,7 @@
 'use client';
 
 import MainLayout from '@/components/layout/MainLayout';
-import Card from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { useState } from 'react';
 
 interface FaqItem {

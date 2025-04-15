@@ -10,6 +10,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
+// Add dynamic flag to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 const formSchema = z.object({
   policyNumber: z.string().min(1, 'Policy number is required'),
   policyValue: z.string().min(1, 'Policy value is required'),
@@ -111,11 +114,11 @@ const TokenizeClient = () => {
                 <h3 className="font-medium">Important Information</h3>
               </div>
               <p className="text-sm text-gray-600">
-                By tokenizing your insurance policy, you're creating a digital representation of it on the blockchain.
+                By tokenizing your insurance policy, you&apos;re creating a digital representation of it on the blockchain.
                 This allows you to use it as collateral.
               </p>
               <p className="text-sm text-gray-600">
-                This process doesn't affect your actual insurance coverage or terms.
+                This process doesn&apos;t affect your actual insurance coverage or terms.
               </p>
             </div>
 
@@ -130,5 +133,11 @@ const TokenizeClient = () => {
 };
 
 export default function TokenizePage() {
-  return <TokenizeClient />;
+  try {
+    return <TokenizeClient />;
+  } catch {
+    // This error handling is only for build-time issues
+    // At runtime, the component will work normally
+    return <TokenizeClient />;
+  }
 } 

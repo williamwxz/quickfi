@@ -5,6 +5,9 @@ import RootLayoutClient from "@/components/layout/RootLayoutClient";
 export const metadata: Metadata = {
   title: "QuickFi - Decentralized Insurance-backed Loans",
   description: "Get instant USDC loans backed by your tokenized insurance policies on Pharos Network",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

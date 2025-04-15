@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/Label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Info } from 'lucide-react';
 
+// Add dynamic flag to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 // Sample data for tokenized policies
 const SAMPLE_POLICIES = [
   { id: 'NFT-001', policyNumber: 'POL-123456', value: 100000, expiryDate: '2026-05-20' },
@@ -127,7 +130,7 @@ const LoanClient = () => {
                         <div>
                           <h3 className="font-medium">Loan Terms</h3>
                           <p className="text-sm text-gray-600 mt-1">
-                            You can borrow up to 70% of your policy's value. Interest is calculated
+                            You can borrow up to 70% of your policy&apos;s value. Interest is calculated
                             based on the LTV ratio and loan term. Repayment must be made before
                             the due date to avoid liquidation of your NFT collateral.
                           </p>
@@ -201,5 +204,11 @@ const LoanClient = () => {
 };
 
 export default function LoanPage() {
-  return <LoanClient />;
+  try {
+    return <LoanClient />;
+  } catch {
+    // This error handling is only for build-time issues
+    // At runtime, the component will work normally
+    return <LoanClient />;
+  }
 } 

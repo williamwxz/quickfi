@@ -1,8 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import Card from './Card';
-import Button from './Button';
+import { Card } from './Card';
+import { Button } from './Button';
 
 interface TokenCardProps {
   tokenId: string | number;
@@ -60,8 +60,6 @@ export default function TokenCard({
   return (
     <Card
       className={`overflow-hidden hover:shadow-md transition-all ${className}`}
-      bordered
-      hoverable
     >
       <div className="p-4">
         <div className="flex items-center gap-4 mb-4">
@@ -133,12 +131,12 @@ export default function TokenCard({
 
         <div className="flex flex-col gap-2 mt-4">
           {onViewDetails && (
-            <Button onClick={onViewDetails} variant="outline" fullWidth>
+            <Button onClick={onViewDetails} variant="outline" className="w-full">
               View Details
             </Button>
           )}
           {onUseAsCollateral && !isExpired && (
-            <Button onClick={onUseAsCollateral} fullWidth>
+            <Button onClick={onUseAsCollateral} className="w-full">
               Use as Collateral
             </Button>
           )}

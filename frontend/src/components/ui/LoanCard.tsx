@@ -1,7 +1,7 @@
 'use client';
 
-import Card from './Card';
-import Button from './Button';
+import { Card } from './Card';
+import { Button } from './Button';
 
 interface LoanCardProps {
   loanId: string;
@@ -92,8 +92,6 @@ export default function LoanCard({
   return (
     <Card
       className={`overflow-hidden hover:shadow-md transition-all ${className}`}
-      bordered
-      hoverable
     >
       <div className="p-4">
         <div className="flex justify-between items-start mb-4">
@@ -168,12 +166,12 @@ export default function LoanCard({
 
         <div className="flex flex-col gap-2 mt-4">
           {onViewDetails && (
-            <Button onClick={onViewDetails} variant="outline" fullWidth>
+            <Button onClick={onViewDetails} variant="outline" className="w-full">
               View Details
             </Button>
           )}
           {onMakePayment && status === 'active' && (
-            <Button onClick={onMakePayment} fullWidth>
+            <Button onClick={onMakePayment} className="w-full">
               Make Payment
             </Button>
           )}

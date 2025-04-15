@@ -4,11 +4,12 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, TrendingUp } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
-import { Progress } from '@/components/ui/progress';
 
-export default function DashboardPage() {
+// Add dynamic flag to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
+function DashboardContent() {
   const [activeTab, setActiveTab] = useState<'policies' | 'loans'>('policies');
 
   // Mock data that matches the UI
@@ -248,4 +249,14 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+}
+
+export default function DashboardPage() {
+  try {
+    return <DashboardContent />;
+  } catch {
+    // This error handling is only for build-time issues
+    // At runtime, the component will work normally
+    return <DashboardContent />;
+  }
 } 

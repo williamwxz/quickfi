@@ -15,7 +15,7 @@ export default function FAQPage() {
     },
     {
       question: "How does policy tokenization work?",
-      answer: "Policy tokenization converts your traditional insurance policy into a digital asset (NFT) on the blockchain. This NFT represents your policy's value and can be used as collateral for loans while keeping the underlying policy active and protected."
+      answer: "Policy tokenization converts your traditional insurance policy into a digital asset (NFT) on the blockchain. This NFT represents your policy&apos;s value and can be used as collateral for loans while keeping the underlying policy active and protected."
     },
     {
       question: "What types of insurance policies can I tokenize?",
@@ -23,7 +23,7 @@ export default function FAQPage() {
     },
     {
       question: "How much can I borrow against my policy?",
-      answer: "You can typically borrow up to 75% of your policy's cash value. The exact amount depends on various factors including policy type, value, and term."
+      answer: "You can typically borrow up to 75% of your policy&apos;s cash value. The exact amount depends on various factors including policy type, value, and term."
     },
     {
       question: "What happens to my policy when I take a loan?",
@@ -45,7 +45,7 @@ export default function FAQPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Frequently Asked Questions</h1>
           <p className="text-gray-600 mt-2">
-            Find answers to common questions about QuickFi's services and features.
+            Find answers to common questions about QuickFi&apos;s services and features.
           </p>
         </div>
 
