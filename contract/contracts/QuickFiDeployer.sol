@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./utils/ServiceConfiguration.sol";
 import "./tokenization/TokenizedPolicyFactory.sol";
 import "./loan/RiskEngineProxy.sol";
@@ -67,8 +68,8 @@ contract QuickFiDeployer is Ownable {
         require(riskEngineImpl != address(0), "QuickFiDeployer: Zero address");
         
         // Deploy TokenizedPolicyFactory proxy
-        bytes memory factoryInitData = abi.encodeWithSelector(
-            TokenizedPolicyFactory(factoryImpl).initialize.selector,
+        bytes memory factoryInitData = abi.encodeWithSignature(
+            "initialize(address)",
             address(serviceConfiguration)
         );
         
@@ -81,8 +82,8 @@ contract QuickFiDeployer is Ownable {
         tokenizedPolicyFactory = TokenizedPolicyFactory(factoryProxy);
         
         // Deploy RiskEngine proxy
-        bytes memory riskEngineInitData = abi.encodeWithSelector(
-            bytes4(keccak256("initialize()"))
+        bytes memory riskEngineInitData = abi.encodeWithSignature(
+            "initialize()"
         );
         
         riskEngine = address(new RiskEngineProxy(

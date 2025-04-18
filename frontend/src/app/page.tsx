@@ -162,6 +162,26 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Metrics Section */}
+        <section id="stats" className="py-12 bg-blue-50">
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+              <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                <h3 className="text-4xl font-bold text-blue-600 mb-2">175,000</h3>
+                <p className="text-gray-600 font-medium">Total Insurances Tokenized</p>
+              </div>
+              <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                <h3 className="text-4xl font-bold text-blue-600 mb-2">$4,522,000</h3>
+                <p className="text-gray-600 font-medium">Total Collateral Value</p>
+              </div>
+              <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                <h3 className="text-4xl font-bold text-blue-600 mb-2">$3,014,000</h3>
+                <p className="text-gray-600 font-medium">Total Borrowed</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Features Section */}
         <section id="features" className="py-16 md:py-24 bg-gradient-to-b from-white to-blue-50/50">
           <div className="container mx-auto px-4 md:px-6">
@@ -223,13 +243,13 @@ export default function Home() {
             <div className="relative overflow-hidden rounded-3xl">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-95"></div>
               <div className="absolute inset-0 bg-[url('/placeholder.svg')] mix-blend-overlay opacity-10"></div>
-              
+
               <div className="relative z-10 px-6 py-16 md:px-12 md:py-20 text-center">
                 <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
                   Ready to Unlock the Value of Your Insurance Policy?
                 </h2>
                 <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto mb-8">
-                  Join thousands of policy holders who have already accessed over $12.5M in liquidity through QuickFi.
+                  Join over 175,000 policy holders who have already accessed more than $3M in liquidity through QuickFi.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-4">
                   <Link href="/app">

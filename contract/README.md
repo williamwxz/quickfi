@@ -12,6 +12,11 @@ QuickFi consists of several core components:
 4. **Capital Sourcing** - Loans are funded through Morpho Blue's lending markets
 
 ## Architecture
+
+For a comprehensive architecture diagram including Oracle integration, please see [architecture_diagram.md](./architecture_diagram.md).
+
+Here's a simplified overview of the core components:
+
 ```mermaid
 graph TD
     %% Core Contracts
@@ -19,90 +24,52 @@ graph TD
     RE[RiskEngine]
     TP[TokenizedPolicy]
     MA[MorphoAdapter]
-    
-    %% Interfaces
-    ILO[ILoanOrigination]
-    IRE[IRiskEngine]
-    ITP[ITokenizedPolicy]
-    IMA[IMorphoAdapter]
-    
-    %% External Protocols & Dependencies
+    PO[PolicyOracle]
+
+    %% External Dependencies
     MB[Morpho Blue]
     USDC[USDC Token]
-    
-    %% Interface Implementations
-    ILO --> LO
-    IRE --> RE
-    ITP --> TP
-    IMA --> MA
-    
+    IC[Insurance Companies]
+
     %% Contract Dependencies
     LO --> RE
     LO --> MA
     LO --> TP
-    LO --> USDC
-    
-    RE --> TP
+    TP --> PO
+    PO --> IC
     MA --> MB
-    MA --> USDC
-    
-    %% Access Control
-    AC[AccessControl]
-    RG[ReentrancyGuard]
-    UP[Upgradeable]
-    
-    AC --> LO
-    AC --> RE
-    AC --> TP
-    AC --> MA
-    
-    RG --> LO
-    RG --> MA
-    
-    UP --> TP
-    
+
     %% Contract Features
     subgraph TokenizedPolicy
         TP --> NFT[ERC721]
         TP --> POL[Policy Details]
         TP --> VAL[Valuation]
-    end
-    
-    subgraph LoanOrigination
-        LO --> LOAN[Loan Management]
-        LO --> RISK[Risk Assessment]
-        LO --> COLL[Collateral Management]
-    end
-    
-    subgraph RiskEngine
-        RE --> ASSESS[Risk Assessment]
-        RE --> PARAMS[Risk Parameters]
-        RE --> ORACLE[Price Oracle]
-    end
-    
-    subgraph MorphoAdapter
-        MA --> MARKET[Market Management]
-        MA --> POS[Position Management]
-        MA --> LIQ[Liquidation]
+        TP --> STAT[Status]
     end
 
-    %% Contract Roles
-    ROLES[Contract Roles]
-    ROLES --> |ADMIN| LO
-    ROLES --> |LIQUIDATOR| LO
-    ROLES --> |LOAN_MANAGER| LO
-    ROLES --> |MINTER| TP
-    ROLES --> |UPGRADER| TP
-    ROLES --> |RISK_MANAGER| RE
+    subgraph PolicyOracle
+        PO --> VALDATA[Valuation Data]
+        PO --> EXPDATA[Expiry Data]
+        PO --> STATDATA[Status Data]
+        PO --> SYNC[Bidirectional Sync]
+    end
 ```
-
 
 The system is built with a modular architecture:
 
-- `TokenizedPolicy.sol` - ERC721 token for insurance policies
+- `TokenizedPolicy.sol` - ERC721 token for insurance policies with Oracle integration
 - `RiskEngine.sol` - Risk assessment for loan applications (from Perimeter Protocol)
 - `LoanOrigination.sol` - Loan origination and management (from Perimeter Protocol)
+- `LoanOriginationWithOracle.sol` - Enhanced loan origination with insurance company notification
 - `MorphoAdapter.sol` - Interface to Morpho Blue for capital sourcing
+- `PolicyOracle.sol` - Oracle for policy valuation, expiry date, and status synchronization
+
+The Oracle integration enables:
+
+1. Real-time policy valuation from insurance companies
+2. Verification of policy expiry dates
+3. Notification to insurance companies when policies default
+4. Synchronization of policy status between blockchain and insurance systems
 
 ## Setup and Installation
 
@@ -203,14 +170,15 @@ npm run deploy:upgradeable
 
 ## Workflow
 
-1. **Tokenization**:
+1. **Tokenization with Oracle Integration**:
    - User uploads their insurance policy through the QuickFi frontend
    - The policy is tokenized into an ERC721 token with metadata
-   - Token contains valuation data for LTV calculations
+   - Policy valuation and expiry date are obtained from the Oracle
+   - Oracle fetches data from insurance company systems
 
-2. **Loan Request**:
+2. **Loan Request with Real-time Valuation**:
    - User applies for a loan using their tokenized policy as collateral
-   - Risk engine evaluates the application based on policy value
+   - Risk engine evaluates the application based on current policy value from Oracle
    - If approved, a loan is created in the PENDING state
 
 3. **Loan Activation**:
@@ -218,10 +186,16 @@ npm run deploy:upgradeable
    - Policy token is transferred to the Morpho adapter as collateral
    - USDC is borrowed via Morpho Blue and sent to the user
 
-4. **Repayment**:
+4. **Repayment or Default**:
    - User repays the loan (principal + interest)
    - Once fully repaid, the collateral is released back to the user
-   - If defaulted, the collateral can be liquidated
+   - If defaulted, the collateral is liquidated
+
+5. **Insurance Company Notification**:
+   - When a loan defaults, the insurance company is notified via Oracle
+   - Policy status is updated in insurance company systems
+   - Updated status is synchronized back to the blockchain
+   - Tokenized policy accurately reflects its real-world status
 
 ## Contract Addresses (Pharos Testnet)
 
@@ -238,8 +212,113 @@ This project is for demonstration purposes and has not been audited. Do not use 
 
 MIT
 
+## Future Roadmap
+
+The following features are planned for future development to enhance the protocol's functionality and better align with real-world insurance dynamics:
+
+### 1. Dynamic Policy Valuation
+
+- **Regular Valuation Updates**: Implement automated periodic updates via Chainlink Automation to reflect changes in policy value as premiums are paid over time
+- **Valuation Decay Model**: Develop a model that reflects how policy value changes between premium payments
+- **Premium Payment Tracking**: Integrate with insurance company systems to track premium payment status
+
+### 2. Enhanced Risk Management
+
+- **Policy Lapse Protection**: Add mechanisms to protect against policy lapses that could affect loan collateral
+- **Premium Payment Alerts**: Implement alerts for borrowers when premium payments are due
+- **Partial Liquidations**: Allow for partial liquidation of collateral rather than full liquidation
+
+### 3. Advanced Oracle Integration
+
+- **Multi-Oracle Support**: Integrate with multiple oracle providers for redundancy and data verification
+- **Insurance Market Data**: Incorporate broader insurance market data for more accurate valuations
+- **Automated Claims Detection**: Detect insurance claims through oracle integration and adjust loan terms accordingly
+
+### 4. Improved Liquidation Process
+
+- **Liquidation Warnings**: Implement an off-chain notification system to warn borrowers when approaching liquidation threshold
+- **Liquidation Delay**: Add a short delay between when a loan becomes eligible for liquidation and when it can be liquidated
+- **Liquidation Incentives**: Implement a liquidation bonus to incentivize liquidators
+
+### 5. Insurance-Specific Features
+
+- **Policy Renewal Handling**: Automatically handle policy renewals to ensure continuous collateral coverage
+- **Policy Endorsement Support**: Support for policy endorsements that may affect valuation
+- **Multi-Policy Collateralization**: Allow borrowers to use multiple policies as collateral for a single loan
+
 ## Acknowledgements
 
 - Perimeter Protocol by Circle
 - Morpho Blue
 - OpenZeppelin Contracts
+- Chainlink Oracle Network
+
+## Phraos Hackathon Demo Setup
+
+This section explains how to set up and run the QuickFi protocol demo for the Phraos chain hackathon.
+
+### Overview
+
+For demo purposes, we've created mock implementations of some components:
+
+1. **MockMorphoAdapter**: Simulates interactions with Morpho Blue protocol without actual integration
+2. **MockTokenizedPolicy**: Simplified tokenized insurance policy implementation with Oracle integration
+3. **MockUSDC**: ERC20 token that simulates USDC for liquidity
+4. **MockRiskEngine**: Simulates risk assessment without external dependencies
+5. **MockPolicyOracle**: Simulates Chainlink Oracle for policy valuation, expiry date, and status synchronization
+6. **LoanOriginationWithOracle**: Enhanced loan origination with insurance company notification
+
+### Demo Setup Instructions
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/your-org/quickfi-contract.git
+cd quickfi-contract
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Create a `.env` file based on `.env.example` and set your environment variables.
+
+4. Run the deployment script for demo:
+
+```bash
+npx hardhat run scripts/demo_setup.js --network localhost
+```
+
+5. Copy the deployed contract addresses from the console output and update them in `scripts/demo_flow.js`.
+
+6. Run the demo flow to see the protocol in action:
+
+```bash
+npx hardhat run scripts/demo_flow.js --network localhost
+```
+
+### Demo Flow
+
+The demo flow includes:
+
+1. Setting up mock contracts including the PolicyOracle
+2. Minting tokenized insurance policy NFTs with Oracle integration
+3. Obtaining policy valuation and expiry date from the Oracle
+4. Creating loan requests with insurance policies as collateral
+5. Funding loans based on Oracle-provided valuations
+6. Repaying loans
+7. Demonstrating liquidation in case of default
+8. Notifying insurance companies about defaults via Oracle
+9. Synchronizing policy status between blockchain and insurance systems
+
+We provide three demo scripts:
+
+1. **Simple Demo** (`scripts/demo_simple.js`): Basic functionality with Oracle integration
+2. **Comprehensive Demo** (`scripts/demo_comprehensive.js`): Full contract interactions
+3. **Oracle Synchronization Demo** (`scripts/demo_oracle_sync.js`): Focused on bidirectional Oracle communication
+
+This demo flow demonstrates the key functionality of QuickFi protocol, including Oracle integration for real-time policy data and insurance company synchronization.
