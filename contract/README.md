@@ -268,6 +268,54 @@ For demo purposes, we've created mock implementations of some components:
 5. **MockPolicyOracle**: Simulates Chainlink Oracle for policy valuation, expiry date, and status synchronization
 6. **LoanOriginationWithOracle**: Enhanced loan origination with insurance company notification
 
+### Available Scripts
+
+#### Deployment Scripts
+
+1. **Standard Deployment** (`deploy.ts`)
+   - Deploys the standard (non-upgradeable) version of the contracts
+   - Suitable for testing and initial deployment
+   ```bash
+   npx hardhat run scripts/deploy.ts --network localhost
+   ```
+
+2. **Upgradeable Deployment** (`deploy-upgradeable.ts`)
+   - Deploys the upgradeable version of the contracts using proxy pattern
+   - Recommended for production deployments
+   ```bash
+   npx hardhat run scripts/deploy-upgradeable.ts --network localhost
+   ```
+
+3. **Upgrade Implementation** (`upgrade-implementation.ts`)
+   - Upgrades the implementation of upgradeable contracts
+   - Used for updating contract logic without changing storage
+   ```bash
+   IMPL_TYPE=TOKENIZED_POLICY npx hardhat run scripts/upgrade-implementation.ts --network localhost
+   ```
+
+#### Demo Scripts
+
+1. **Simple Demo** (`demo_simple.js`)
+   - Demonstrates core functionality with Oracle integration
+   - Simplified mock components for easy understanding
+   ```bash
+   npx hardhat run scripts/demo_simple.js --network localhost
+   ```
+
+2. **Comprehensive Demo** (`demo_comprehensive.js`)
+   - Full contract interactions with proper error handling
+   - More realistic demonstration of the protocol
+   ```bash
+   npx hardhat run scripts/demo_comprehensive.js --network localhost
+   ```
+
+3. **Oracle Synchronization Demo** (`demo_oracle_sync.js`)
+   - Focused on Oracle integration and insurance company synchronization
+   - Demonstrates bidirectional communication flow
+   ```bash
+   npx hardhat run scripts/demo_oracle_sync.js --network localhost
+   ```
+
 ### Demo Setup Instructions
 
 1. Clone the repository:
@@ -287,18 +335,16 @@ yarn install
 
 3. Create a `.env` file based on `.env.example` and set your environment variables.
 
-4. Run the deployment script for demo:
+4. Start a local Hardhat node:
 
 ```bash
-npx hardhat run scripts/demo_setup.js --network localhost
+npx hardhat node
 ```
 
-5. Copy the deployed contract addresses from the console output and update them in `scripts/demo_flow.js`.
-
-6. Run the demo flow to see the protocol in action:
+5. In a new terminal, run one of the demo scripts:
 
 ```bash
-npx hardhat run scripts/demo_flow.js --network localhost
+npx hardhat run scripts/demo_simple.js --network localhost
 ```
 
 ### Demo Flow

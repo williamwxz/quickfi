@@ -44,6 +44,14 @@ interface IPolicyOracle {
     );
 
     /**
+     * @dev Event emitted when default details are provided
+     */
+    event DefaultDetails(
+        string indexed policyNumber,
+        string details
+    );
+
+    /**
      * @dev Gets the current valuation for a policy
      * @param policyNumber The policy number
      * @return The current valuation amount in USD (with 6 decimals)

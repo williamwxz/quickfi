@@ -124,12 +124,10 @@ contract MockPolicyOracle is IPolicyOracle, AccessControl {
     /**
      * @dev Fulfills a policy valuation update request (mock function)
      * This simulates the callback from Chainlink
-     * @param requestId The request ID
      * @param policyNumber The policy number
      * @param valuation The valuation amount
      */
     function fulfillPolicyValuationUpdate(
-        bytes32 requestId,
         string memory policyNumber,
         uint256 valuation
     ) external onlyRole(ORACLE_ROLE) {
@@ -144,12 +142,10 @@ contract MockPolicyOracle is IPolicyOracle, AccessControl {
     /**
      * @dev Fulfills a policy expiry date update request (mock function)
      * This simulates the callback from Chainlink
-     * @param requestId The request ID
      * @param policyNumber The policy number
      * @param expiryDate The expiry date
      */
     function fulfillPolicyExpiryUpdate(
-        bytes32 requestId,
         string memory policyNumber,
         uint256 expiryDate
     ) external onlyRole(ORACLE_ROLE) {
@@ -176,7 +172,7 @@ contract MockPolicyOracle is IPolicyOracle, AccessControl {
         // In a real implementation, this would send a notification to the insurance company
         // via Chainlink's Any API functionality
         _requestCounter++;
-        requestId = keccak256(abi.encodePacked(policyNumber, "default", _requestCounter));
+        requestId = keccak256(abi.encodePacked(policyNumber, details, _requestCounter));
 
         // Update policy status to DEFAULTED
         uint8 oldStatus = _policyStatuses[policyNumber];
@@ -184,6 +180,7 @@ contract MockPolicyOracle is IPolicyOracle, AccessControl {
 
         emit PolicyStatusUpdated(policyNumber, oldStatus, POLICY_STATUS_DEFAULTED);
         emit DefaultNotificationSent(policyNumber, liquidator, block.timestamp);
+        emit DefaultDetails(policyNumber, details);
 
         return requestId;
     }
@@ -217,12 +214,10 @@ contract MockPolicyOracle is IPolicyOracle, AccessControl {
     /**
      * @dev Fulfills a policy status update request (mock function)
      * This simulates the callback from Chainlink
-     * @param requestId The request ID
      * @param policyNumber The policy number
      * @param status The policy status
      */
     function fulfillPolicyStatusUpdate(
-        bytes32 requestId,
         string memory policyNumber,
         uint8 status
     ) external onlyRole(ORACLE_ROLE) {
