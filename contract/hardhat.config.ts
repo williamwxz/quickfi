@@ -26,7 +26,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     pharos: {
-      url: process.env.PHAROS_RPC_URL || "https://rpc.testnet.pharoschain.xyz",
+      url: process.env.PHAROS_RPC_URL || "https://devnet.dplabs-internal.com/",
       accounts: [PRIVATE_KEY],
     },
     hardhat: {

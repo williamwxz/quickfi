@@ -2,6 +2,7 @@ import { createConfig, http } from 'wagmi';
 import { mainnet, sepolia } from 'viem/chains';
 import { QueryClient } from '@tanstack/react-query';
 import { getDefaultWallets } from '@rainbow-me/rainbowkit';
+import { hardhatLocal } from './chains';
 
 export const queryClient = new QueryClient();
 
@@ -15,10 +16,13 @@ export const { connectors } = getDefaultWallets({
   projectId,
 });
 
+
+
 // Configure Wagmi
 export const config = createConfig({
-  chains: [sepolia, mainnet],
+  chains: [hardhatLocal, sepolia, mainnet],
   transports: {
+    [hardhatLocal.id]: http(),
     [sepolia.id]: http(),
     [mainnet.id]: http(),
   },

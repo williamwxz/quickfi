@@ -1,0 +1,71 @@
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize the Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+/**
+ * Fetch contract addresses from Supabase
+ * @param network The blockchain network to fetch addresses for
+ * @returns An object with contract names as keys and addresses as values
+ */
+export async function fetchContractAddresses(network: string = 'localhost') {
+  try {
+    const { data, error } = await supabase
+      .from('contract_addresses')
+      .select('contract_name, address')
+      .eq('network', network)
+      .eq('is_current', true);
+    
+    if (error) {
+      console.error('Error fetching contract addresses:', error);
+      return null;
+    }
+    
+    if (!data || data.length === 0) {
+      console.log(`No contract addresses found for network: ${network}`);
+      return null;
+    }
+    
+    // Convert the data to the expected format
+    const addresses: Record<string, string> = {};
+    data.forEach(item => {
+      addresses[item.contract_name] = item.address;
+    });
+    
+    return addresses;
+  } catch (error) {
+    console.error('Error fetching contract addresses:', error);
+    return null;
+  }
+}
+
+/**
+ * Fallback function to get contract addresses from environment variables
+ * @returns An object with contract names as keys and addresses as values
+ */
+export function getContractAddressesFromEnv() {
+  return {
+    TokenizedPolicy: process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS || '',
+    RiskEngine: process.env.NEXT_PUBLIC_RISK_ENGINE_ADDRESS || '',
+    LoanOrigination: process.env.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS || '',
+    MorphoAdapter: process.env.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS || '',
+    Stablecoin: process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS || ''
+  };
+}
+
+/**
+ * Get contract addresses, first trying Supabase, then falling back to environment variables
+ * @param network The blockchain network to fetch addresses for
+ * @returns An object with contract names as keys and addresses as values
+ */
+export async function getContractAddresses(network: string = 'localhost') {
+  const supabaseAddresses = await fetchContractAddresses(network);
+  if (supabaseAddresses) {
+    return supabaseAddresses;
+  }
+  
+  return getContractAddressesFromEnv();
+}

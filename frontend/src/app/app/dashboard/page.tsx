@@ -81,7 +81,7 @@ function DashboardContent() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-600 mt-2">
-          Manage your tokenized policies and loans
+          Manage tokenized policies and loans
         </p>
       </div>
 
@@ -113,7 +113,7 @@ function DashboardContent() {
               : 'text-gray-600'
           }`}
         >
-          My Tokenized Policies
+          Tokenized Policies
         </button>
         <button
           onClick={() => setActiveTab('loans')}
@@ -123,12 +123,13 @@ function DashboardContent() {
               : 'text-gray-600'
           }`}
         >
-          My Loans
+          Loans
         </button>
+
       </div>
 
       {/* Content based on active tab */}
-      {activeTab === 'policies' ? (
+      {activeTab === 'policies' && (
         // Tokenized Policies List
         <div className="space-y-4">
           {tokenizedPolicies.map((policy) => (
@@ -137,7 +138,7 @@ function DashboardContent() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <h3 className="text-lg font-semibold">{policy.id}</h3>
-                    <Badge 
+                    <Badge
                       variant={policy.status === "Available" ? "default" : "secondary"}
                       className={policy.status === "Available" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}
                     >
@@ -174,11 +175,13 @@ function DashboardContent() {
 
           <div className="flex justify-center mt-6">
             <Button variant="outline" size="lg">
-              Tokenize Another Policy
+              Tokenize Policy
             </Button>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'loans' && (
         // Loans List
         <div className="space-y-4">
           {loans.map((loan) => (
@@ -195,9 +198,9 @@ function DashboardContent() {
                     Repay Loan
                   </Button>
                 </div>
-                
+
                 <p className="text-gray-600">Collateral: {loan.collateral}</p>
-                
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div>
                     <p className="text-gray-600">Principal</p>
@@ -259,4 +262,4 @@ export default function DashboardPage() {
     // At runtime, the component will work normally
     return <DashboardContent />;
   }
-} 
+}

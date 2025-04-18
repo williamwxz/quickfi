@@ -15,7 +15,7 @@ async function main() {
   // Handle stablecoin setup based on network
   let stablecoinAddress: string;
   let mockUSDCInstance: MockUSDC | undefined;
-  
+
   if (network.name === "hardhat" || network.name === "localhost") {
     // Local testing - deploy MockUSDC
     console.log("Local network detected - Deploying MockUSDC...");
@@ -40,27 +40,13 @@ async function main() {
     console.log("Using existing stablecoin at:", stablecoinAddress);
   }
 
-  // Deploy TokenizedPolicy
+  // Deploy TokenizedPolicy (non-proxy version for simplicity)
   console.log("Deploying TokenizedPolicy...");
   const TokenizedPolicy = await ethers.getContractFactory("TokenizedPolicy");
-  const tokenizedPolicy = await TokenizedPolicy.deploy();
-  await tokenizedPolicy.waitForDeployment();
-  const tokenizedPolicyAddress = await tokenizedPolicy.getAddress();
-  console.log("TokenizedPolicy implementation deployed to:", tokenizedPolicyAddress);
-
-  // Deploy TokenizedPolicy proxy
-  console.log("Deploying TokenizedPolicy proxy...");
-  const TokenizedPolicyProxy = await ethers.getContractFactory("ERC1967Proxy");
-  const tokenizedPolicyProxy = await TokenizedPolicyProxy.deploy(
-    tokenizedPolicyAddress,
-    tokenizedPolicy.interface.encodeFunctionData("initialize", ["Insurance Policy Token", "IPT"])
-  );
-  await tokenizedPolicyProxy.waitForDeployment();
-  const tokenizedPolicyProxyAddress = await tokenizedPolicyProxy.getAddress();
-  console.log("TokenizedPolicy proxy deployed to:", tokenizedPolicyProxyAddress);
-
-  // Get the proxy contract instance
-  const tokenizedPolicyInstance = await ethers.getContractAt("TokenizedPolicy", tokenizedPolicyProxyAddress);
+  const tokenizedPolicyInstance = await TokenizedPolicy.deploy("Insurance Policy Token", "IPT");
+  await tokenizedPolicyInstance.waitForDeployment();
+  const tokenizedPolicyAddress = await tokenizedPolicyInstance.getAddress();
+  console.log("TokenizedPolicy deployed to:", tokenizedPolicyAddress);
 
   // Deploy RiskEngine
   console.log("Deploying RiskEngine...");
@@ -83,12 +69,25 @@ async function main() {
   // Deploy MorphoAdapter
   console.log("Deploying MorphoAdapter...");
   const MorphoAdapter = await ethers.getContractFactory("MorphoAdapter");
-  const morphoAdapter = await MorphoAdapter.deploy(
-    await loanOrigination.getAddress(),
-    stablecoinAddress
-  );
+  const morphoAdapter = await MorphoAdapter.deploy();
   await morphoAdapter.waitForDeployment();
   console.log("MorphoAdapter deployed to:", await morphoAdapter.getAddress());
+
+  // Initialize MorphoAdapter (wrapped in try-catch to handle already initialized case)
+  console.log("Initializing MorphoAdapter...");
+  try {
+    await morphoAdapter.initialize(
+      await loanOrigination.getAddress(),
+      stablecoinAddress
+    );
+    console.log("MorphoAdapter initialized");
+  } catch (error: any) {
+    if (error.message.includes("already initialized")) {
+      console.log("MorphoAdapter already initialized, skipping initialization");
+    } else {
+      throw error;
+    }
+  }
 
   // Update LoanOrigination with the correct MorphoAdapter address
   console.log("Updating LoanOrigination with correct MorphoAdapter address...");
@@ -125,4 +124,4 @@ async function main() {
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-}); 
+});

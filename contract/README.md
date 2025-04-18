@@ -35,9 +35,9 @@ graph TD
     LO --> RE
     LO --> MA
     LO --> TP
-    TP --> PO
     PO --> IC
     MA --> MB
+    TP --> PO
 
     %% Contract Features
     subgraph TokenizedPolicy

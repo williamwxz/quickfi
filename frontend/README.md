@@ -43,6 +43,30 @@ QuickFi includes several API endpoints to facilitate the tokenization of insuran
 - **Request**: JSON with user address and policy metadata
 - **Response**: Tokenized policy details
 
+### Get All Policies
+- **Endpoint**: `/api/policy`
+- **Method**: GET
+- **Description**: Retrieves all tokenized insurance policies.
+- **Response**: List of all policy tokens with their details
+
+### Get Policy Details
+- **Endpoint**: `/api/policy/[tokenId]`
+- **Method**: GET
+- **Description**: Retrieves details for a specific policy token.
+- **Response**: Policy token details including owner, value, and expiry date
+
+### Get Policy Metadata
+- **Endpoint**: `/api/policy/metadata/[tokenId]`
+- **Method**: GET
+- **Description**: Retrieves metadata for a specific policy token.
+- **Response**: Policy token metadata
+
+### Get Policies by Owner
+- **Endpoint**: `/api/policy/owner/[address]`
+- **Method**: GET
+- **Description**: Retrieves all policies owned by a specific address.
+- **Response**: List of policy tokens owned by the address
+
 ### Loan Application
 - **Endpoint**: `/api/loan-apply`
 - **Method**: POST
@@ -121,3 +145,6 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 Your site will be live at `https://your-project-name.vercel.app` and will automatically deploy whenever you push changes to your repository.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+### Pharos Network
+(Pharos Devnet Onboarding Guide)[https://docs.pharosnetwork.xyz/developer-guides/pharos-devnet-onboarding-guide]

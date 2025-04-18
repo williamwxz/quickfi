@@ -9,12 +9,15 @@
     "deploy": "hardhat run scripts/deploy.ts",
     "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts",
     "verify": "hardhat verify",
-    "upgrade": "hardhat run scripts/upgrade-implementation.ts"
+    "upgrade": "hardhat run scripts/upgrade-implementation.ts",
+    "upload-addresses": "ts-node scripts/supabase-upload.ts",
+    "fetch-addresses": "ts-node scripts/supabase-fetch.ts"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/contracts": "^4.9.5",
     "@openzeppelin/contracts-upgradeable": "^4.9.6",
+    "@supabase/supabase-js": "^2.39.7",
     "dotenv": "^16.4.5",
     "hardhat": "^2.22.19",
     "viem": "^2.25.0"
