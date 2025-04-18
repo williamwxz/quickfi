@@ -29,22 +29,18 @@ interface ITokenizedPolicy {
     function initialize(string memory name, string memory symbol) external;
 
     /**
-     * @dev Mints a new policy token
+     * @dev Mints a new policy token with Oracle integration
      * @param to The recipient address
      * @param policyNumber The policy number
-     * @param issuer The policy issuer
-     * @param valuationAmount The policy valuation amount
-     * @param expiryDate The policy expiry date
      * @param documentHash The policy document hash
+     * @param jurisdiction The jurisdiction of the policy
      * @return tokenId The minted token ID
      */
     function mintPolicy(
         address to,
         string memory policyNumber,
-        address issuer,
-        uint256 valuationAmount,
-        uint256 expiryDate,
-        bytes32 documentHash
+        bytes32 documentHash,
+        string memory jurisdiction
     ) external returns (uint256);
 
     /**
@@ -68,7 +64,8 @@ interface ITokenizedPolicy {
         address issuer,
         uint256 valuationAmount,
         uint256 expiryDate,
-        bytes32 documentHash
+        bytes32 documentHash,
+        string memory jurisdiction
     );
 
     /**
@@ -77,4 +74,4 @@ interface ITokenizedPolicy {
      * @return The policy valuation amount
      */
     function getValuation(uint256 tokenId) external view returns (uint256);
-} 
+}

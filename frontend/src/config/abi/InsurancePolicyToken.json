@@ -9,26 +9,21 @@
         },
         {
           "internalType": "string",
-          "name": "tokenURI",
+          "name": "policyNumber",
           "type": "string"
         },
         {
-          "internalType": "uint256",
-          "name": "policyValue",
-          "type": "uint256"
+          "internalType": "bytes32",
+          "name": "documentHash",
+          "type": "bytes32"
         },
         {
-          "internalType": "uint256",
-          "name": "expiryTimestamp",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bytes",
-          "name": "metadata",
-          "type": "bytes"
+          "internalType": "string",
+          "name": "jurisdiction",
+          "type": "string"
         }
       ],
-      "name": "mintPolicyToken",
+      "name": "mintPolicy",
       "outputs": [
         {
           "internalType": "uint256",
@@ -241,4 +236,4 @@
       "type": "function"
     }
   ]
-} 
+}

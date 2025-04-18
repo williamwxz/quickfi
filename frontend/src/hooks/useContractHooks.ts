@@ -1,7 +1,6 @@
 'use client';
 
-import { useContractRead, useContractWrite, useWaitForTransactionReceipt } from 'wagmi';
-import { hardhatLocal } from '@/config/web3';
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { InsurancePolicyTokenABI } from '@/config/abi';
 
 // Get contract address from environment variable
@@ -14,12 +13,14 @@ const contractAddress = process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS |
  * @returns Policy token details including loading and error states
  */
 export function usePolicyTokenDetails(tokenId: string | undefined) {
-  return useContractRead({
+  return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'getPolicyTokenDetails',
     args: tokenId ? [BigInt(tokenId)] : undefined,
-    enabled: !!tokenId,
+    query: {
+      enabled: !!tokenId,
+    },
   });
 }
 
@@ -29,12 +30,14 @@ export function usePolicyTokenDetails(tokenId: string | undefined) {
  * @returns Policy metadata including loading and error states
  */
 export function usePolicyMetadata(tokenId: string | undefined) {
-  return useContractRead({
+  return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'getPolicyMetadata',
     args: tokenId ? [BigInt(tokenId)] : undefined,
-    enabled: !!tokenId,
+    query: {
+      enabled: !!tokenId,
+    },
   });
 }
 
@@ -44,12 +47,14 @@ export function usePolicyMetadata(tokenId: string | undefined) {
  * @returns Token URI including loading and error states
  */
 export function useTokenURI(tokenId: string | undefined) {
-  return useContractRead({
+  return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'tokenURI',
     args: tokenId ? [BigInt(tokenId)] : undefined,
-    enabled: !!tokenId,
+    query: {
+      enabled: !!tokenId,
+    },
   });
 }
 
@@ -59,38 +64,43 @@ export function useTokenURI(tokenId: string | undefined) {
  * @returns Token owner address including loading and error states
  */
 export function useTokenOwner(tokenId: string | undefined) {
-  return useContractRead({
+  return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'ownerOf',
     args: tokenId ? [BigInt(tokenId)] : undefined,
-    enabled: !!tokenId,
+    query: {
+      enabled: !!tokenId,
+    },
   });
 }
 
 /**
- * Hook to mint a new policy token
+ * Hook to mint a new policy token with Oracle
  * @returns Contract write function, data, and states
  */
 export function useMintPolicyToken() {
-  const { data, isLoading, isSuccess, write, error } = useContractWrite({
-    address: contractAddress as `0x${string}`,
-    abi: InsurancePolicyTokenABI,
-    functionName: 'mintPolicyToken',
-  });
+  const { data, isPending, writeContract } = useWriteContract();
 
   const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
-    hash: data?.hash,
-    enabled: !!data?.hash,
+    hash: data,
   });
 
+  const mintPolicyToken = async (args: any[]) => {
+    return writeContract({
+      address: contractAddress as `0x${string}`,
+      abi: InsurancePolicyTokenABI,
+      functionName: 'mintPolicy',
+      args,
+    });
+  };
+
   return {
-    mintPolicyToken: write,
+    mintPolicyToken,
     data,
     txData,
-    isLoading: isLoading || isTxLoading,
-    isSuccess: isSuccess && isTxSuccess,
-    error,
+    isLoading: isPending || isTxLoading,
+    isSuccess: isTxSuccess,
   };
 }
 
@@ -101,12 +111,14 @@ export function useMintPolicyToken() {
  * @returns Approval status including loading and error states
  */
 export function useIsApprovedForAll(owner: string | undefined, operator: string | undefined) {
-  return useContractRead({
+  return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'isApprovedForAll',
     args: owner && operator ? [owner as `0x${string}`, operator as `0x${string}`] : undefined,
-    enabled: !!owner && !!operator,
+    query: {
+      enabled: !!owner && !!operator,
+    },
   });
 }
 
@@ -115,23 +127,26 @@ export function useIsApprovedForAll(owner: string | undefined, operator: string 
  * @returns Contract write function, data, and states
  */
 export function useSetApprovalForAll() {
-  const { data, isLoading, isSuccess, write, error } = useContractWrite({
-    address: contractAddress as `0x${string}`,
-    abi: InsurancePolicyTokenABI,
-    functionName: 'setApprovalForAll',
-  });
+  const { data, isPending, writeContract } = useWriteContract();
 
   const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
-    hash: data?.hash,
-    enabled: !!data?.hash,
+    hash: data,
   });
 
+  const setApprovalForAll = async (operator: string, approved: boolean) => {
+    return writeContract({
+      address: contractAddress as `0x${string}`,
+      abi: InsurancePolicyTokenABI,
+      functionName: 'setApprovalForAll',
+      args: [operator as `0x${string}`, approved],
+    });
+  };
+
   return {
-    setApprovalForAll: write,
+    setApprovalForAll,
     data,
     txData,
-    isLoading: isLoading || isTxLoading,
-    isSuccess: isSuccess && isTxSuccess,
-    error,
+    isLoading: isPending || isTxLoading,
+    isSuccess: isTxSuccess,
   };
 }
