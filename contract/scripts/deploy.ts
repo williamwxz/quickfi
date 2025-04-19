@@ -1,5 +1,8 @@
 import { ethers } from "hardhat";
 import { BaseContract } from "ethers";
+import * as fs from "fs";
+import * as path from "path";
+import { createClient } from '@supabase/supabase-js';
 
 interface MockStablecoin extends BaseContract {
   mint(to: string, amount: bigint): Promise<any>;
@@ -226,6 +229,40 @@ async function main() {
     }
   }
 
+  // Save deployed addresses to JSON file
+  const deployedAddresses = {
+    TokenRegistry: tokenRegistryAddress,
+    TokenizedPolicy: await tokenizedPolicyInstance.getAddress(),
+    RiskEngine: await riskEngine.getAddress(),
+    LoanOrigination: await loanOrigination.getAddress(),
+    MorphoAdapter: await morphoAdapter.getAddress(),
+    USDC: usdcAddress,
+    USDT: usdtAddress
+  };
+
+  // Read existing addresses file if it exists
+  const addressesPath = path.join(__dirname, '../deployed-addresses.json');
+  let existingAddresses: Record<string, Record<string, string>> = {};
+
+  try {
+    if (fs.existsSync(addressesPath)) {
+      const fileContent = fs.readFileSync(addressesPath, 'utf8');
+      existingAddresses = JSON.parse(fileContent);
+    }
+  } catch (error) {
+    console.warn('Could not read existing addresses file:', error);
+  }
+
+  // Update with new addresses
+  existingAddresses[network.name] = deployedAddresses;
+
+  // Write updated addresses back to file
+  fs.writeFileSync(
+    addressesPath,
+    JSON.stringify(existingAddresses, null, 2),
+    'utf8'
+  );
+
   console.log("\nQuickFi contracts deployed successfully!");
   console.log("\nContract Addresses:");
   console.log("TokenRegistry:", tokenRegistryAddress);
@@ -235,6 +272,111 @@ async function main() {
   console.log("MorphoAdapter:", await morphoAdapter.getAddress());
   console.log("USDC:", usdcAddress);
   console.log("USDT:", usdtAddress);
+  console.log("\nAddresses saved to", addressesPath);
+
+  // Automatically upload addresses to Supabase if credentials are available
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+    console.log("\nUploading addresses to Supabase...");
+    try {
+      // Initialize Supabase client
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_KEY
+      );
+
+      const timestamp = new Date().toISOString();
+
+      // Upload each contract address to Supabase
+      for (const [contractName, address] of Object.entries(deployedAddresses)) {
+        const { error } = await supabase
+          .from('contract_addresses')
+          .upsert({
+            network: network.name,
+            contract_name: contractName,
+            address: address as string,
+            deployed_at: timestamp,
+            is_current: true
+          }, {
+            onConflict: 'network,contract_name',
+            ignoreDuplicates: false
+          });
+
+        if (error) {
+          console.error(`Error uploading ${contractName} address:`, error);
+        } else {
+          console.log(`Successfully uploaded ${contractName} address to Supabase`);
+        }
+      }
+
+      console.log("All addresses successfully uploaded to Supabase");
+
+      // Update frontend .env.local file
+      await updateFrontendEnv(network.name, deployedAddresses);
+
+    } catch (error) {
+      console.error("Failed to upload addresses to Supabase:", error);
+      console.log("You can manually upload addresses later with: npm run upload-addresses");
+    }
+  } else {
+    console.log("\nTo upload addresses to Supabase, run: npm run upload-addresses");
+  }
+}
+
+/**
+ * Updates the frontend .env.local file with contract addresses
+ */
+async function updateFrontendEnv(network: string, addresses: Record<string, string>) {
+  // Only update frontend for specific networks
+  const allowedNetworks = ['localhost', 'pharosDevnet', 'sepolia'];
+  if (!allowedNetworks.includes(network)) {
+    console.log(`Skipping frontend .env update for network: ${network}`);
+    return;
+  }
+
+  // Path to frontend .env.local file
+  const envPath = path.join(__dirname, '../../frontend/.env.local');
+  let envContent = '';
+
+  try {
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf8');
+    }
+  } catch (error) {
+    console.warn('Could not read .env.local file:', error);
+  }
+
+  // Map contract names to environment variable names
+  const contractToEnvMap: Record<string, string> = {
+    'TokenizedPolicy': 'NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS',
+    'RiskEngine': 'NEXT_PUBLIC_RISK_ENGINE_ADDRESS',
+    'LoanOrigination': 'NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS',
+    'MorphoAdapter': 'NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS',
+    'USDC': 'NEXT_PUBLIC_USDC_ADDRESS',
+    'USDT': 'NEXT_PUBLIC_USDT_ADDRESS'
+  };
+
+  // Update environment variables
+  let newEnvContent = envContent;
+
+  for (const [contractName, address] of Object.entries(addresses)) {
+    const envName = contractToEnvMap[contractName];
+    if (envName) {
+      // Check if the variable already exists in the file
+      const regex = new RegExp(`^${envName}=.*$`, 'm');
+
+      if (regex.test(newEnvContent)) {
+        // Replace existing variable
+        newEnvContent = newEnvContent.replace(regex, `${envName}=${address}`);
+      } else {
+        // Add new variable
+        newEnvContent += `\n${envName}=${address}`;
+      }
+    }
+  }
+
+  // Write updated .env.local file
+  fs.writeFileSync(envPath, newEnvContent, 'utf8');
+  console.log(`Frontend environment variables updated in ${envPath}`);
 }
 
 main().catch((error) => {

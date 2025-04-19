@@ -1,8 +1,9 @@
+import { redirect } from 'next/navigation';
+
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
-import LoanClient from '@/components/loan/LoanClient';
-
+// Redirect to the correct loan page
 export default function LoanPage() {
-  return <LoanClient />;
+  redirect('/app/loan');
 }

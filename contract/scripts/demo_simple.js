@@ -338,6 +338,10 @@ async function main() {
   if (isLocalNetwork) {
     // Mint second policy
     const secondPolicyNumber = "POL-789012";
+    const issuer = deployer.address; // Define issuer here
+    const valuationAmount = ethers.parseUnits("10000", 6); // $10,000 policy
+    const expiryDate = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60; // 1 year from now
+    const documentHash = ethers.keccak256(ethers.toUtf8Bytes("Insurance Policy Document"));
     await mockTokenizedPolicy.mintPolicy(
       borrower.address,
       secondPolicyNumber,
@@ -389,6 +393,7 @@ Summary:
 
   if (isLocalNetwork) {
     // Update policy valuation in Oracle
+    const policyNumber = "POL-123456"; // Define policyNumber here
     const newValuation = ethers.parseUnits("12000", 6); // Increased to $12,000
     await mockPolicyOracle.setPolicyValuation(policyNumber, newValuation);
     console.log(`Updated policy valuation in Oracle to ${ethers.formatUnits(newValuation, 6)} USDC`);

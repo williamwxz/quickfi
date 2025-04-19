@@ -14,6 +14,7 @@
     "fetch-addresses": "ts-node scripts/supabase-fetch.ts"
   },
   "dependencies": {
+    "@metamask/eth-sig-util": "^8.2.0",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/contracts": "^4.9.5",
     "@openzeppelin/contracts-upgradeable": "^4.9.6",
