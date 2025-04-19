@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/Label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Info } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -326,9 +327,11 @@ const LoanClient = () => {
 // Wrapper component that uses Suspense for useSearchParams
 function LoanClientWrapper() {
   return (
-    <Suspense fallback={<div className="p-8 text-center">Loading loan application...</div>}>
-      <LoanClient />
-    </Suspense>
+    <WalletAuthCheck>
+      <Suspense fallback={<div className="p-8 text-center">Loading loan application...</div>}>
+        <LoanClient />
+      </Suspense>
+    </WalletAuthCheck>
   );
 }
 

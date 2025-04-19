@@ -7,6 +7,7 @@ import { FileText, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -463,10 +464,18 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   try {
-    return <DashboardContent />;
+    return (
+      <WalletAuthCheck>
+        <DashboardContent />
+      </WalletAuthCheck>
+    );
   } catch {
     // This error handling is only for build-time issues
     // At runtime, the component will work normally
-    return <DashboardContent />;
+    return (
+      <WalletAuthCheck>
+        <DashboardContent />
+      </WalletAuthCheck>
+    );
   }
 }

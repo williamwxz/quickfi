@@ -9,11 +9,12 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { toast } from 'react-toastify';
 import { Loader2, Upload, FileText, CheckCircle } from 'lucide-react';
+import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
-export default function TokenizePage() {
+function TokenizeContent() {
   const { address, isConnected } = useAccount();
   const { mintPolicyToken, isLoading, isSuccess, error } = useMintPolicyToken();
 
@@ -261,5 +262,13 @@ export default function TokenizePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function TokenizePage() {
+  return (
+    <WalletAuthCheck>
+      <TokenizeContent />
+    </WalletAuthCheck>
   );
 }

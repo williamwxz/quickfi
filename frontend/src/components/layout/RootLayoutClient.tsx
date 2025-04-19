@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import NavBar from "@/components/layout/NavBar";
 import { usePathname } from 'next/navigation';
 import Head from 'next/head';
+import Footer from '@/components/layout/Footer';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayoutClient({
           <main className={`min-h-screen ${!isAppRoute ? 'pt-16 md:pt-20' : ''}`}>
             {children}
           </main>
+          {!isAppRoute && <Footer />}
       </body>
     </html>
   );

@@ -1,12 +1,12 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MenuIcon, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { ConnectWalletButton } from '@/components/wallet/ConnectWalletButton';
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -52,7 +52,14 @@ export default function AppHeader() {
 
           <div className="flex items-center space-x-4">
             <div className="hidden md:block">
-              <ConnectButton />
+              <div id="connect-wallet-button">
+                <ConnectWalletButton
+                  size="default"
+                  chainStatus="name"
+                  accountStatus="address"
+                  showBalance={false}
+                />
+              </div>
             </div>
 
             {/* Mobile menu button */}
@@ -86,7 +93,15 @@ export default function AppHeader() {
               </Link>
             ))}
             <div className="pt-4">
-              <ConnectButton />
+              <div id="connect-wallet-button-mobile">
+                <ConnectWalletButton
+                  size="default"
+                  chainStatus="name"
+                  accountStatus="address"
+                  showBalance={false}
+                  fullWidth={true}
+                />
+              </div>
             </div>
           </div>
         </div>
