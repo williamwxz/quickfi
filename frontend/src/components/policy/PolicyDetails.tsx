@@ -5,6 +5,7 @@ import { usePolicyTokenDetails, useTokenURI, useTokenOwner } from '@/hooks/useCo
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatUnits } from 'viem';
+import { useRouter } from 'next/navigation';
 
 // Using a simple div as skeleton for now
 const Skeleton = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -16,6 +17,8 @@ interface PolicyDetailsProps {
 }
 
 export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
+  const router = useRouter();
+
   // Use wagmi hooks to read contract data
   const {
     data: policyDetails,
@@ -34,6 +37,11 @@ export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
     isLoading: isLoadingOwner,
     isError: isErrorOwner
   } = useTokenOwner(tokenId);
+
+  // Function to handle "Use as Collateral" button click
+  const handleUseAsCollateral = () => {
+    router.push(`/app/loan?policyId=${tokenId}`);
+  };
 
   // Format the policy value (assuming 6 decimals for USDC)
   const formattedValue = policyDetails
@@ -99,7 +107,12 @@ export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
       </CardContent>
       <CardFooter className="flex justify-end space-x-2">
         <Button variant="outline" disabled={isLoading}>View on Explorer</Button>
-        <Button disabled={isLoading}>Apply for Loan</Button>
+        <Button
+          disabled={isLoading}
+          onClick={handleUseAsCollateral}
+        >
+          Use as Collateral
+        </Button>
       </CardFooter>
     </Card>
   );

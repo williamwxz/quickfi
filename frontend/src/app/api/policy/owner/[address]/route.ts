@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ address: string }> }
 ) {
   try {
@@ -14,16 +15,22 @@ export async function GET(
       );
     }
 
-    // In a real implementation, you would:
-    // 1. Query the blockchain for tokens owned by this address
-    // 2. Get details for each token
+    // Fetch policies from Supabase for this owner
+    const { data, error } = await supabase
+      .from('policies')
+      .select('*')
+      .eq('owner_address', address)
+      .order('created_at', { ascending: false });
 
-    // For demonstration, we'll return a simple response
+    if (error) {
+      console.error('Error fetching policies from Supabase:', error);
+      throw error;
+    }
+
     return NextResponse.json({
       success: true,
       owner: address,
-      policies: [],
-      message: "This endpoint would return real blockchain data in production"
+      policies: data || []
     });
   } catch (error) {
     console.error("Error fetching owned policies:", error);

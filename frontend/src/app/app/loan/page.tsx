@@ -1,31 +1,89 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Info } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
-// Sample data for tokenized policies
-const SAMPLE_POLICIES = [
-  { id: 'NFT-001', policyNumber: 'POL-123456', value: 100000, expiryDate: '2026-05-20' },
-  { id: 'NFT-002', policyNumber: 'POL-789012', value: 50000, expiryDate: '2025-12-10' },
-  { id: 'NFT-003', policyNumber: 'POL-345678', value: 75000, expiryDate: '2027-03-15' },
-];
+// Define the policy type
+type Policy = {
+  id: number;
+  token_id: string;
+  policy_number: string;
+  face_value: number;
+  expiry_date: string;
+  owner_address: string;
+  issuer: string;
+  policy_type: string;
+  status: string;
+};
 
 const LoanClient = () => {
+  const searchParams = useSearchParams();
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
   const [loanAmount, setLoanAmount] = useState<number>(0);
   const [loanTerm, setLoanTerm] = useState<number>(30);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Fetch policies from Supabase
+  useEffect(() => {
+    async function fetchPolicies() {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('policies')
+          .select('*')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching policies:', error);
+          return;
+        }
+
+        if (data) {
+          setPolicies(data as Policy[]);
+        }
+      } catch (error) {
+        console.error('Error fetching policies:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPolicies();
+  }, []);
+
+  // Check for policyId in URL query parameters
+  useEffect(() => {
+    const policyId = searchParams.get('policyId');
+    if (policyId && policies.length > 0) {
+      // Check if the policy exists in our data
+      const policyExists = policies.some(policy => policy.token_id === policyId);
+      if (policyExists) {
+        setSelectedPolicy(policyId);
+
+        // Set initial loan amount to 50% of the policy value
+        const policy = policies.find(p => p.token_id === policyId);
+        if (policy) {
+          setLoanAmount(policy.face_value * 0.5);
+        }
+      }
+    }
+  }, [searchParams, policies]);
 
   // LTV = Loan to Value ratio
-  const ltv = selectedPolicy 
-    ? (loanAmount / (SAMPLE_POLICIES.find(p => p.id === selectedPolicy)?.value || 1)) * 100
+  const ltv = selectedPolicy
+    ? (loanAmount / (policies.find(p => p.token_id === selectedPolicy)?.face_value || 1)) * 100
     : 0;
 
   // Interest rate is fixed at 5% APR
@@ -43,15 +101,65 @@ const LoanClient = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log({
-      selectedPolicy,
-      loanAmount,
-      loanTerm,
-      ltv,
-      interestRate,
-      repaymentAmount,
-      dueDate
-    });
+
+    if (!selectedPolicy) {
+      alert('Please select a policy to use as collateral');
+      return;
+    }
+
+    try {
+      // Generate a unique loan ID
+      const loanId = `LOAN-${Date.now()}`;
+
+      // Get the selected policy
+      const policy = policies.find(p => p.token_id === selectedPolicy);
+
+      if (!policy) {
+        alert('Selected policy not found');
+        return;
+      }
+
+      // Insert the loan into Supabase
+      const { error } = await supabase
+        .from('loans')
+        .insert([
+          {
+            loan_id: loanId,
+            borrower_address: policy.owner_address,
+            collateral_token_id: policy.token_id,
+            loan_amount: loanAmount,
+            interest_rate: interestRate,
+            term_days: loanTerm,
+            start_date: new Date().toISOString(),
+            end_date: dueDate.toISOString(),
+            status: 'pending'
+          }
+        ]);
+
+      if (error) {
+        console.error('Error creating loan:', error);
+        alert('Failed to create loan. Please try again.');
+        return;
+      }
+
+      // Update the policy status to 'used_as_collateral'
+      const { error: policyError } = await supabase
+        .from('policies')
+        .update({ status: 'used_as_collateral' })
+        .eq('token_id', policy.token_id);
+
+      if (policyError) {
+        console.error('Error updating policy status:', policyError);
+      }
+
+      alert('Loan application submitted successfully!');
+
+      // Redirect to dashboard or loan details page
+      window.location.href = '/app/dashboard';
+    } catch (error) {
+      console.error('Error submitting loan application:', error);
+      alert('An error occurred. Please try again.');
+    }
   };
 
   return (
@@ -70,28 +178,39 @@ const LoanClient = () => {
                   <div>
                     <h2 className="text-lg font-semibold mb-4">Select Collateral</h2>
                     <p className="text-sm text-gray-500 mb-4">Choose a tokenized policy to use as collateral for your loan</p>
-                    
-                    <RadioGroup value={selectedPolicy || ''} onValueChange={setSelectedPolicy}>
-                      <div className="space-y-4">
-                        {SAMPLE_POLICIES.map((policy) => (
-                          <div key={policy.id} className="flex items-center space-x-3 p-4 rounded-lg border">
-                            <RadioGroupItem value={policy.id} id={policy.id} />
-                            <Label htmlFor={policy.id} className="flex flex-1 justify-between cursor-pointer">
-                              <div>
-                                <div className="font-medium">{policy.id}</div>
-                                <div className="text-sm text-gray-500">Policy: {policy.policyNumber}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-medium">${policy.value.toLocaleString()}</div>
-                                <div className="text-sm text-gray-500">
-                                  Expires: {new Date(policy.expiryDate).toLocaleDateString()}
-                                </div>
-                              </div>
-                            </Label>
-                          </div>
-                        ))}
+
+                    {loading ? (
+                      <div className="text-center py-8">
+                        <p>Loading policies...</p>
                       </div>
-                    </RadioGroup>
+                    ) : policies.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p>No active policies found. Please tokenize a policy first.</p>
+                      </div>
+                    ) : (
+                      <RadioGroup value={selectedPolicy || ''} onValueChange={setSelectedPolicy}>
+                        <div className="space-y-4">
+                          {policies.map((policy) => (
+                            <div key={policy.token_id} className="flex items-center space-x-3 p-4 rounded-lg border">
+                              <RadioGroupItem value={policy.token_id} id={policy.token_id} />
+                              <Label htmlFor={policy.token_id} className="flex flex-1 justify-between cursor-pointer">
+                                <div>
+                                  <div className="font-medium">Token #{policy.token_id}</div>
+                                  <div className="text-sm text-gray-500">Policy: {policy.policy_number}</div>
+                                  <div className="text-sm text-gray-500">Issuer: {policy.issuer}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-medium">${policy.face_value.toLocaleString()}</div>
+                                  <div className="text-sm text-gray-500">
+                                    Expires: {new Date(policy.expiry_date).toLocaleDateString()}
+                                  </div>
+                                </div>
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </RadioGroup>
+                    )}
                   </div>
 
                   <div>
@@ -187,10 +306,11 @@ const LoanClient = () => {
                   <span className="font-medium">{dueDate.toLocaleDateString()}</span>
                 </div>
 
-                <Button 
+                <Button
                   type="submit"
                   className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white mt-4"
                   disabled={!selectedPolicy || loanAmount <= 0 || ltv > 70}
+                  onClick={handleSubmit}
                 >
                   Apply for Loan
                 </Button>
@@ -203,12 +323,21 @@ const LoanClient = () => {
   );
 };
 
+// Wrapper component that uses Suspense for useSearchParams
+function LoanClientWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading loan application...</div>}>
+      <LoanClient />
+    </Suspense>
+  );
+}
+
 export default function LoanPage() {
   try {
-    return <LoanClient />;
+    return <LoanClientWrapper />;
   } catch {
     // This error handling is only for build-time issues
     // At runtime, the component will work normally
-    return <LoanClient />;
+    return <LoanClientWrapper />;
   }
-} 
+}

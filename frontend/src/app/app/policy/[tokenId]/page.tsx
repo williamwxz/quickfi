@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import PolicyDetails from '@/components/policy/PolicyDetails';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
@@ -11,7 +11,13 @@ export const dynamic = 'force-dynamic';
 
 export default function PolicyPage() {
   const params = useParams();
+  const router = useRouter();
   const tokenId = params.tokenId as string;
+
+  // Function to handle "Use as Collateral" button click
+  const handleUseAsCollateral = () => {
+    router.push(`/app/loan?policyId=${tokenId}`);
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -23,14 +29,14 @@ export default function PolicyPage() {
           </Button>
         </Link>
       </div>
-      
+
       <h1 className="text-3xl font-bold mb-6">Policy Details</h1>
-      
+
       <PolicyDetails tokenId={tokenId} />
-      
+
       <div className="mt-8 flex justify-end gap-4">
         <Button variant="outline">View on Explorer</Button>
-        <Button>Apply for Loan</Button>
+        <Button onClick={handleUseAsCollateral}>Use as Collateral</Button>
       </div>
     </div>
   );
