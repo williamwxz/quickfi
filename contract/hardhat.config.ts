@@ -7,7 +7,7 @@ import { hardhat } from 'viem/chains';
 
 dotenv.config();
 
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000000";
+const PRIVATE_KEY = process.env.PRIVATE_KEY ? `0x${process.env.PRIVATE_KEY}` : "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -16,16 +16,17 @@ const config: HardhatUserConfig = {
       optimizer: {
         enabled: true,
         runs: 200
-      }
+      },
+      viaIR: true
     }
   },
   etherscan: {
     apiKey: {
-      pharos: process.env.PHAROS_ETHERSCAN_API_KEY || "",
+      pharosDevnet: process.env.PHAROS_ETHERSCAN_API_KEY || "",
     },
   },
   networks: {
-    pharos: {
+    pharosDevnet: {
       url: process.env.PHAROS_RPC_URL || "https://devnet.dplabs-internal.com/",
       accounts: [PRIVATE_KEY],
     },

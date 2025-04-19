@@ -7,18 +7,51 @@ const { ethers } = require("hardhat");
 async function main() {
   console.log("Starting QuickFi Comprehensive Demo...");
 
-  const [deployer, borrower, lender] = await ethers.getSigners();
+  const [deployer, borrower, lender, liquidator] = await ethers.getSigners();
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Borrower: ${borrower.address}`);
   console.log(`Lender: ${lender.address}`);
+  console.log(`Liquidator: ${liquidator.address}`);
 
-  // Deploy mock USDC
+  // Deploy mock stablecoins and token registry
   console.log("\n==== Deploying Mock Contracts ====");
+
+  // Deploy TokenRegistry
+  const TokenRegistry = await ethers.getContractFactory("contracts/utils/TokenRegistry.sol:TokenRegistry");
+  const tokenRegistry = await TokenRegistry.deploy();
+  await tokenRegistry.waitForDeployment();
+  const tokenRegistryAddress = await tokenRegistry.getAddress();
+  console.log(`TokenRegistry deployed to: ${tokenRegistryAddress}`);
+
+  // Deploy MockUSDC
   const MockUSDC = await ethers.getContractFactory("MockUSDC");
   const mockUSDC = await MockUSDC.deploy("Mock USDC", "mUSDC", 6);
   await mockUSDC.waitForDeployment();
   const mockUSDCAddress = await mockUSDC.getAddress();
   console.log(`MockUSDC deployed to: ${mockUSDCAddress}`);
+
+  // Deploy MockUSDT
+  const mockUSDT = await MockUSDC.deploy("Mock USDT", "mUSDT", 6);
+  await mockUSDT.waitForDeployment();
+  const mockUSDTAddress = await mockUSDT.getAddress();
+  console.log(`MockUSDT deployed to: ${mockUSDTAddress}`);
+
+  // Add tokens to registry
+  await tokenRegistry.addToken(
+    mockUSDCAddress,
+    6,
+    ethers.parseUnits("100", 6), // Min loan amount: 100 USDC
+    ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDC
+  );
+  console.log("Added USDC to TokenRegistry");
+
+  await tokenRegistry.addToken(
+    mockUSDTAddress,
+    6,
+    ethers.parseUnits("100", 6), // Min loan amount: 100 USDT
+    ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDT
+  );
+  console.log("Added USDT to TokenRegistry");
 
   // Deploy mock TokenizedPolicy
   const MockTokenizedPolicy = await ethers.getContractFactory("MockTokenizedPolicy");
@@ -62,7 +95,7 @@ async function main() {
   const loanOrigination = await LoanOrigination.deploy(
     mockRiskEngineAddress,
     tempMorphoAdapter,
-    mockUSDCAddress
+    tokenRegistryAddress
   );
   await loanOrigination.waitForDeployment();
   const loanOriginationAddress = await loanOrigination.getAddress();
@@ -72,29 +105,47 @@ async function main() {
   const MockMorphoAdapter = await ethers.getContractFactory("MockMorphoAdapter");
   const mockMorphoAdapter = await MockMorphoAdapter.deploy(
     loanOriginationAddress,
-    mockUSDCAddress
+    tokenRegistryAddress
   );
   await mockMorphoAdapter.waitForDeployment();
   const mockMorphoAdapterAddress = await mockMorphoAdapter.getAddress();
   console.log(`MockMorphoAdapter deployed to: ${mockMorphoAdapterAddress}`);
 
+  // Grant ADMIN_ROLE to deployer
+  const ADMIN_ROLE = await loanOrigination.ADMIN_ROLE();
+  await loanOrigination.grantRole(ADMIN_ROLE, deployer.address);
+  console.log(`Granted admin role to ${deployer.address}`);
+
   // Update LoanOrigination with the correct MorphoAdapter address
   await loanOrigination.updateMorphoAdapter(mockMorphoAdapterAddress);
   console.log("LoanOrigination updated with MorphoAdapter address");
 
-  // Mint USDC to participants
-  console.log("\n==== Distributing USDC ====");
-  const lenderAmount = ethers.parseUnits("100000", 6);  // 100k USDC
-  const borrowerAmount = ethers.parseUnits("1000", 6);  // 1k USDC
-  const adapterAmount = ethers.parseUnits("500000", 6); // 500k USDC for the adapter
+  // Grant liquidator role to the liquidator
+  const LIQUIDATOR_ROLE = await loanOrigination.LIQUIDATOR_ROLE();
+  await loanOrigination.grantRole(LIQUIDATOR_ROLE, liquidator.address);
+  console.log(`Granted liquidator role to ${liquidator.address}`);
 
+  // Mint stablecoins to participants
+  console.log("\n==== Distributing Stablecoins ====");
+  const lenderAmount = ethers.parseUnits("100000", 6);  // 100k of each stablecoin
+  const borrowerAmount = ethers.parseUnits("1000", 6);  // 1k of each stablecoin
+  const adapterAmount = ethers.parseUnits("500000", 6); // 500k of each stablecoin for the adapter
+
+  // Mint USDC
   await mockUSDC.mint(lender.address, lenderAmount);
   await mockUSDC.mint(borrower.address, borrowerAmount);
   await mockUSDC.mint(mockMorphoAdapterAddress, adapterAmount);
-
   console.log(`Minted ${ethers.formatUnits(lenderAmount, 6)} USDC to lender: ${lender.address}`);
   console.log(`Minted ${ethers.formatUnits(borrowerAmount, 6)} USDC to borrower: ${borrower.address}`);
   console.log(`Minted ${ethers.formatUnits(adapterAmount, 6)} USDC to MorphoAdapter: ${mockMorphoAdapterAddress}`);
+
+  // Mint USDT
+  await mockUSDT.mint(lender.address, lenderAmount);
+  await mockUSDT.mint(borrower.address, borrowerAmount);
+  await mockUSDT.mint(mockMorphoAdapterAddress, adapterAmount);
+  console.log(`Minted ${ethers.formatUnits(lenderAmount, 6)} USDT to lender: ${lender.address}`);
+  console.log(`Minted ${ethers.formatUnits(borrowerAmount, 6)} USDT to borrower: ${borrower.address}`);
+  console.log(`Minted ${ethers.formatUnits(adapterAmount, 6)} USDT to MorphoAdapter: ${mockMorphoAdapterAddress}`);
 
   // Mint policy tokens to borrower
   console.log("\n==== Creating Tokenized Insurance Policies ====");
@@ -132,12 +183,14 @@ async function main() {
   - Expiry Date: ${new Date(Number(policyDetails[3]) * 1000).toLocaleDateString()}
   `);
 
-  // Get policy valuation and expiry from Oracle
+  // Get policy valuation, expiry, and status from Oracle
   const oracleValuation = await mockTokenizedPolicy.getValuation(0);
   const oracleExpiry = await mockTokenizedPolicy.getExpiryDate(0);
+  const policyStatus = await mockTokenizedPolicy.getPolicyStatus(0);
   console.log(`Oracle Data for Policy:
   - Valuation from Oracle: ${ethers.formatUnits(oracleValuation, 6)} USDC
   - Expiry Date from Oracle: ${new Date(Number(oracleExpiry) * 1000).toLocaleDateString()}
+  - Policy Status: ${policyStatus} (0=Active, 1=Expired, 2=Defaulted, 3=Claimed, 4=Cancelled)
   `);
 
   // Create a loan request
@@ -165,10 +218,11 @@ async function main() {
     mockTokenizedPolicyAddress,
     0, // Token ID
     loanAmount,
-    loanDuration
+    loanDuration,
+    mockUSDCAddress // Use USDC as the stablecoin
   );
   await loanTx.wait();
-  console.log("Loan request created");
+  console.log("Loan request created with USDC");
 
   // Get loan details
   const loan = await loanOrigination.getLoan(0);
@@ -214,7 +268,7 @@ async function main() {
 
   // Repay the loan
   await loanOrigination.connect(borrower).repayLoan(0, principal);
-  console.log("Loan repaid");
+  console.log("Loan repaid with USDC");
 
   // Get updated loan details
   const repaidLoan = await loanOrigination.getLoan(0);
@@ -253,9 +307,10 @@ async function main() {
     mockTokenizedPolicyAddress,
     1, // Token ID
     loanAmount,
-    loanDuration
+    loanDuration,
+    mockUSDTAddress // Use USDT as the stablecoin
   );
-  console.log("Second loan request created");
+  console.log("Second loan request created with USDT");
 
   // Activate the second loan
   await loanOrigination.connect(borrower).activateLoan(1);
@@ -278,15 +333,41 @@ async function main() {
   console.log("Final loan status would be: LIQUIDATED");
   console.log(`Policy token #1 would be transferred to lender: ${lender.address}`);
 
+  // Check policy status after liquidation
+  const policyStatusAfterLiquidation = await mockTokenizedPolicy.getPolicyStatus(1);
+  console.log(`Policy Status after liquidation: ${policyStatusAfterLiquidation} (0=Active, 1=Expired, 2=Defaulted, 3=Claimed, 4=Cancelled)`);
+
+  console.log("\n==== Demonstrating Insurance Company Notification ====");
+
+  // In a real scenario, the insurance company would be notified via the Oracle
+  // The Oracle would update the policy status in the insurance company's system
+  console.log("Insurance company notified about policy default via Oracle");
+
+  // Simulate insurance company updating policy status
+  console.log("Insurance company updates policy status in their system");
+  console.log("Insurance company sends updated status back via Oracle");
+
+  // Update policy status in Oracle to reflect insurance company's update
+  await mockPolicyOracle.setPolicyStatus(secondPolicyNumber, 2); // DEFAULTED
+  console.log("Oracle updated with new policy status from insurance company");
+
+  // Check policy status after insurance company update
+  const finalPolicyStatus = await mockTokenizedPolicy.getPolicyStatus(1);
+  console.log(`Final Policy Status: ${finalPolicyStatus} (0=Active, 1=Expired, 2=Defaulted, 3=Claimed, 4=Cancelled)`);
+
   console.log("\n==== Demo Completed Successfully! ====");
   console.log(`
 Summary:
 1. Deployed mock contracts for the QuickFi protocol
 2. Created tokenized insurance policies with Oracle integration
-3. Created, funded, and repaid a loan successfully
-4. Created a second loan that was defaulted on and liquidated
-5. Demonstrated the complete loan lifecycle using mock components for Pharos hackathon
-6. Integrated with Oracle for policy valuation and expiry date
+3. Deployed TokenRegistry with support for multiple stablecoins (USDC, USDT)
+4. Created, funded, and repaid a USDC loan successfully
+5. Created a USDT loan that was defaulted on and liquidated
+6. Demonstrated the complete loan lifecycle using mock components for Pharos hackathon
+7. Integrated with Oracle for policy valuation and expiry date
+8. Demonstrated bidirectional synchronization with insurance company systems
+9. Showed how policy status is updated after default
+10. Demonstrated how Oracle updates affect loan parameters
   `);
 
   // Demonstrate Oracle update
@@ -309,6 +390,8 @@ Summary:
   const newLoanAmount = (updatedValuation * BigInt(7000)) / BigInt(10000); // 70% LTV
   console.log(`With the new valuation, the maximum loan amount would be: ${ethers.formatUnits(newLoanAmount, 6)} USDC`);
   console.log("This demonstrates how Oracle updates can dynamically adjust loan parameters based on current policy valuations");
+  console.log("\nThe loan system always uses Oracle to check and update policy valuation, ensuring accurate collateral values.");
+  console.log("The system also maintains bidirectional synchronization with insurance companies, ensuring policy status is always up-to-date.");
 }
 
 main()

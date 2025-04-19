@@ -90,30 +90,25 @@ contract TokenizedPolicy is
      * @dev Mints a new policy token with Oracle integration
      * @param to The recipient address
      * @param policyNumber The policy number
+     * @param issuer The policy issuer
+     * @param valuationAmount The policy valuation amount
+     * @param expiryDate The policy expiry date
      * @param documentHash The policy document hash
-     * @param jurisdiction The jurisdiction of the policy
      * @return tokenId The minted token ID
      */
     function mintPolicy(
         address to,
         string memory policyNumber,
-        bytes32 documentHash,
-        string memory jurisdiction
+        address issuer,
+        uint256 valuationAmount,
+        uint256 expiryDate,
+        bytes32 documentHash
     ) external onlyRole(MINTER_ROLE) returns (uint256) {
         require(to != address(0), "TokenizedPolicy: Zero address");
+        require(issuer != address(0), "TokenizedPolicy: Zero address");
         require(bytes(policyNumber).length > 0, "TokenizedPolicy: Empty policy number");
-        require(isOracleAvailable(), "TokenizedPolicy: Oracle not configured");
-
-        // Get policy valuation from Oracle
-        uint256 valuationAmount = policyOracle.getPolicyValuation(policyNumber);
         require(valuationAmount > 0, "TokenizedPolicy: Invalid valuation amount");
-
-        // Get policy expiry date from Oracle
-        uint256 expiryDate = policyOracle.getPolicyExpiryDate(policyNumber);
         require(expiryDate > block.timestamp, "TokenizedPolicy: Invalid expiry date");
-
-        // Use msg.sender as the issuer for now (in a real implementation, this would come from the Oracle)
-        address issuer = msg.sender;
 
         // Mint the token
         uint256 tokenId = _nextTokenId++;
@@ -126,7 +121,7 @@ contract TokenizedPolicy is
             valuationAmount: valuationAmount,
             expiryDate: expiryDate,
             documentHash: documentHash,
-            jurisdiction: jurisdiction
+            jurisdiction: ""
         });
 
         emit PolicyMinted(tokenId, to, policyNumber, issuer, valuationAmount, expiryDate);
@@ -153,15 +148,13 @@ contract TokenizedPolicy is
      * @return valuationAmount The policy valuation amount
      * @return expiryDate The policy expiry date
      * @return documentHash The policy document hash
-     * @return jurisdiction The jurisdiction of the policy
      */
-    function getPolicyDetails(uint256 tokenId) external view returns (
+    function getPolicyDetails(uint256 tokenId) external view override returns (
         string memory policyNumber,
         address issuer,
         uint256 valuationAmount,
         uint256 expiryDate,
-        bytes32 documentHash,
-        string memory jurisdiction
+        bytes32 documentHash
     ) {
         require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
 
@@ -171,8 +164,7 @@ contract TokenizedPolicy is
             details.issuer,
             details.valuationAmount,
             details.expiryDate,
-            details.documentHash,
-            details.jurisdiction
+            details.documentHash
         );
     }
 

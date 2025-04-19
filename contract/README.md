@@ -1,6 +1,6 @@
 # QuickFi Smart Contract
 
-QuickFi is a decentralized micro-loan platform built on the Pharos Network that enables users to obtain USDC loans backed by tokenized insurance policies.
+QuickFi is a decentralized micro-loan platform built on the Pharos Network that enables users to obtain stablecoin loans (USDC, USDT, etc.) backed by tokenized insurance policies.
 
 ## Overview
 
@@ -10,6 +10,7 @@ QuickFi consists of several core components:
 2. **Risk Assessment** - Loan requests are evaluated based on the tokenized policy valuation
 3. **Loan Origination** - Approved loans are processed with the tokenized policy as collateral
 4. **Capital Sourcing** - Loans are funded through Morpho Blue's lending markets
+5. **Multi-Token Support** - Support for multiple stablecoins through TokenRegistry
 
 ## Architecture
 
@@ -28,15 +29,19 @@ graph TD
 
     %% External Dependencies
     MB[Morpho Blue]
+    TR[Token Registry]
     USDC[USDC Token]
+    USDT[USDT Token]
     IC[Insurance Companies]
 
     %% Contract Dependencies
     LO --> RE
     LO --> MA
     LO --> TP
+    LO --> TR
     PO --> IC
     MA --> MB
+    MA --> TR
     TP --> PO
 
     %% Contract Features
@@ -59,9 +64,9 @@ The system is built with a modular architecture:
 
 - `TokenizedPolicy.sol` - ERC721 token for insurance policies with Oracle integration
 - `RiskEngine.sol` - Risk assessment for loan applications (from Perimeter Protocol)
-- `LoanOrigination.sol` - Loan origination and management (from Perimeter Protocol)
-- `LoanOriginationWithOracle.sol` - Enhanced loan origination with insurance company notification
+- `LoanOrigination.sol` - Loan origination with multi-token support and optional Oracle integration
 - `MorphoAdapter.sol` - Interface to Morpho Blue for capital sourcing
+- `TokenRegistry.sol` - Registry for supported stablecoins
 - `PolicyOracle.sol` - Oracle for policy valuation, expiry date, and status synchronization
 
 The Oracle integration enables:
@@ -71,13 +76,19 @@ The Oracle integration enables:
 3. Notification to insurance companies when policies default
 4. Synchronization of policy status between blockchain and insurance systems
 
+The multi-token support enables:
+
+1. Support for multiple stablecoins (USDC, USDT, etc.)
+2. Flexible loan terms based on the stablecoin
+3. Easy addition of new stablecoins through TokenRegistry
+
 ## Setup and Installation
 
 ### Prerequisites
 
 - Node.js v16+
 - npm or yarn
-- A Pharos Network account with USDC
+- A Pharos Network account with stablecoins (USDC, USDT, etc.)
 
 ### Installation
 
@@ -176,22 +187,27 @@ npm run deploy:upgradeable
    - Policy valuation and expiry date are obtained from the Oracle
    - Oracle fetches data from insurance company systems
 
-2. **Loan Request with Real-time Valuation**:
+2. **Stablecoin Selection**:
+   - User selects which stablecoin they want to borrow (USDC, USDT, etc.)
+   - TokenRegistry verifies that the selected stablecoin is supported
+   - Loan terms are adjusted based on the selected stablecoin
+
+3. **Loan Request with Real-time Valuation**:
    - User applies for a loan using their tokenized policy as collateral
    - Risk engine evaluates the application based on current policy value from Oracle
    - If approved, a loan is created in the PENDING state
 
-3. **Loan Activation**:
+4. **Loan Activation**:
    - User activates the approved loan
    - Policy token is transferred to the Morpho adapter as collateral
-   - USDC is borrowed via Morpho Blue and sent to the user
+   - Selected stablecoin is borrowed via Morpho Blue and sent to the user
 
-4. **Repayment or Default**:
-   - User repays the loan (principal + interest)
+5. **Repayment or Default**:
+   - User repays the loan (principal + interest) in the same stablecoin
    - Once fully repaid, the collateral is released back to the user
    - If defaulted, the collateral is liquidated
 
-5. **Insurance Company Notification**:
+6. **Insurance Company Notification**:
    - When a loan defaults, the insurance company is notified via Oracle
    - Policy status is updated in insurance company systems
    - Updated status is synchronized back to the blockchain
@@ -246,6 +262,13 @@ The following features are planned for future development to enhance the protoco
 - **Policy Endorsement Support**: Support for policy endorsements that may affect valuation
 - **Multi-Policy Collateralization**: Allow borrowers to use multiple policies as collateral for a single loan
 
+### 6. Enhanced Multi-Token Support
+
+- **Token-Specific Risk Parameters**: Customize risk parameters based on the stablecoin used
+- **Interest Rate Models**: Implement different interest rate models for different stablecoins
+- **Yield Strategies**: Integrate with yield protocols to generate returns on unused capital
+- **Cross-Token Loans**: Allow borrowing in one stablecoin and repaying in another with appropriate exchange rates
+
 ## Acknowledgements
 
 - Perimeter Protocol by Circle
@@ -264,9 +287,12 @@ For demo purposes, we've created mock implementations of some components:
 1. **MockMorphoAdapter**: Simulates interactions with Morpho Blue protocol without actual integration
 2. **MockTokenizedPolicy**: Simplified tokenized insurance policy implementation with Oracle integration
 3. **MockUSDC**: ERC20 token that simulates USDC for liquidity
-4. **MockRiskEngine**: Simulates risk assessment without external dependencies
-5. **MockPolicyOracle**: Simulates Chainlink Oracle for policy valuation, expiry date, and status synchronization
-6. **LoanOriginationWithOracle**: Enhanced loan origination with insurance company notification
+4. **MockUSDT**: ERC20 token that simulates USDT for liquidity
+5. **MockRiskEngine**: Simulates risk assessment without external dependencies
+6. **MockPolicyOracle**: Simulates Chainlink Oracle for policy valuation, expiry date, and status synchronization
+7. **LoanOriginationWithOracle**: Enhanced loan origination with insurance company notification
+8. **TokenRegistry**: Registry for supported stablecoins
+9. **MultiTokenLoanOrigination**: Enhanced loan origination with multi-token support
 
 ### Available Scripts
 
@@ -309,12 +335,7 @@ For demo purposes, we've created mock implementations of some components:
    npx hardhat run scripts/demo_comprehensive.js --network localhost
    ```
 
-3. **Oracle Synchronization Demo** (`demo_oracle_sync.js`)
-   - Focused on Oracle integration and insurance company synchronization
-   - Demonstrates bidirectional communication flow
-   ```bash
-   npx hardhat run scripts/demo_oracle_sync.js --network localhost
-   ```
+The demo scripts have been updated to demonstrate multi-token support.
 
 ### Demo Setup Instructions
 
@@ -361,10 +382,9 @@ The demo flow includes:
 8. Notifying insurance companies about defaults via Oracle
 9. Synchronizing policy status between blockchain and insurance systems
 
-We provide three demo scripts:
+We provide two demo scripts:
 
-1. **Simple Demo** (`scripts/demo_simple.js`): Basic functionality with Oracle integration
-2. **Comprehensive Demo** (`scripts/demo_comprehensive.js`): Full contract interactions
-3. **Oracle Synchronization Demo** (`scripts/demo_oracle_sync.js`): Focused on bidirectional Oracle communication
+1. **Simple Demo** (`scripts/demo_simple.js`): Basic functionality with Oracle integration and multi-token support
+2. **Comprehensive Demo** (`scripts/demo_comprehensive.js`): Full contract interactions including bidirectional Oracle communication and multi-token support
 
-This demo flow demonstrates the key functionality of QuickFi protocol, including Oracle integration for real-time policy data and insurance company synchronization.
+This demo flow demonstrates the key functionality of QuickFi protocol, including Oracle integration for real-time policy data, insurance company synchronization, and multi-token support.

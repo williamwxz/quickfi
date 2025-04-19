@@ -5,5 +5,12 @@
     "LoanOrigination": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
     "MorphoAdapter": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
     "Stablecoin": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+  },
+  "pharosDevnet": {
+    "TokenizedPolicy": "0x526dbA0Bd247420682D6b17A88dD8F990E1881b8",
+    "RiskEngine": "0x91F364d5b9b99896Ea86D45d1547F8B871A44AD9",
+    "LoanOrigination": "0xD42BC5D8DEa36C5b5134Aa8Ca2ED546C20595795",
+    "MorphoAdapter": "0xf1c8Ebf9F0Fc3bcbff8d0BF1149298531FFE99BB",
+    "Stablecoin": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
   }
 }
