@@ -23,7 +23,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* <div>
+          <div>
             <h3 className="text-xl font-semibold mb-4">Ecosystem</h3>
             <ul className="space-y-2 text-sm">
               <li><a href="https://pharosnetwork.xyz/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Pharos Network</a></li>
@@ -31,7 +31,7 @@ export default function Footer() {
               <li><a href="https://morpho.org" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Morpho Blue</a></li>
               <li><a href="https://erc721.org/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">ERC721 Standard</a></li>
             </ul>
-          </div> */}
+          </div>
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Connect</h3>

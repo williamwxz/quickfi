@@ -29,13 +29,14 @@ interface Loan {
   nextPaymentDate: string;
   remainingPayments: number;
   status: 'active' | 'paid' | 'defaulted';
+  stablecoin?: string; // USDC or USDT
 }
 
 function DashboardContent() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const [activeTab, setActiveTab] = useState<'loans' | 'policies'>('loans');
-  
+
   // Mock data for tokenized policies
   const mockPolicies: InsurancePolicy[] = [
     {
@@ -57,7 +58,7 @@ function DashboardContent() {
       imageUrl: 'https://placehold.co/150x150/10B981/FFFFFF?text=Policy',
     },
   ];
-  
+
   // Mock data for loans
   const mockLoans: Loan[] = [
     {
@@ -70,27 +71,40 @@ function DashboardContent() {
       nextPaymentDate: '2023-06-15',
       remainingPayments: 8,
       status: 'active',
+      stablecoin: 'USDC',
+    },
+    {
+      id: 'L-789012',
+      policyId: '987654321',
+      amount: 25000,
+      term: 6,
+      interestRate: 4.5,
+      startDate: '2023-03-10',
+      nextPaymentDate: '2023-06-10',
+      remainingPayments: 3,
+      status: 'active',
+      stablecoin: 'USDT',
     },
   ];
-  
+
   // Find policy by ID
   const getPolicyById = (id: string) => {
     return mockPolicies.find(policy => policy.id === id);
   };
-  
+
   // Calculate monthly payment
   const calculateMonthlyPayment = (loan: Loan) => {
     const monthlyInterestRate = loan.interestRate / 100 / 12;
     const payment = (loan.amount * monthlyInterestRate) / (1 - Math.pow(1 + monthlyInterestRate, -loan.term));
     return payment.toFixed(2);
   };
-  
+
   // Calculate total remaining balance
   const calculateRemainingBalance = (loan: Loan) => {
     const monthlyPayment = parseFloat(calculateMonthlyPayment(loan));
     return (monthlyPayment * loan.remainingPayments).toFixed(2);
   };
-  
+
   // Calculate progress percentage
   const calculateProgress = (loan: Loan) => {
     return (((loan.term - loan.remainingPayments) / loan.term) * 100).toFixed(0);
@@ -100,7 +114,7 @@ function DashboardContent() {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
-  
+
   // Check if the wallet is connected, if not display a message
   if (!isConnected) {
     return (
@@ -117,7 +131,7 @@ function DashboardContent() {
       </MainLayout>
     );
   }
-  
+
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-10">
@@ -125,7 +139,7 @@ function DashboardContent() {
         <p className="text-neutral-content max-w-2xl mb-8">
           Manage your tokenized insurance policies and active loans from one place.
         </p>
-        
+
         {/* Wallet Info */}
         <Card className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -151,23 +165,23 @@ function DashboardContent() {
             </div>
           </div>
         </Card>
-        
+
         {/* Tabs */}
         <div className="tabs tabs-boxed mb-6">
-          <a 
+          <a
             className={`tab ${activeTab === 'loans' ? 'tab-active' : ''}`}
             onClick={() => setActiveTab('loans')}
           >
             My Loans
           </a>
-          <a 
+          <a
             className={`tab ${activeTab === 'policies' ? 'tab-active' : ''}`}
             onClick={() => setActiveTab('policies')}
           >
             My Policies
           </a>
         </div>
-        
+
         {/* Loans Tab */}
         {activeTab === 'loans' && (
           <div>
@@ -182,7 +196,7 @@ function DashboardContent() {
               <div className="grid grid-cols-1 gap-6">
                 {mockLoans.map((loan) => {
                   const policy = getPolicyById(loan.policyId);
-                  
+
                   return (
                     <Card key={loan.id} className="overflow-hidden">
                       <div className="flex flex-col md:flex-row">
@@ -191,8 +205,8 @@ function DashboardContent() {
                           <h3 className="font-semibold mb-4">Collateral</h3>
                           {policy && (
                             <div className="flex items-center">
-                              <Image 
-                                src={policy.imageUrl} 
+                              <Image
+                                src={policy.imageUrl}
                                 alt={policy.name}
                                 width={100}
                                 height={100}
@@ -212,13 +226,13 @@ function DashboardContent() {
                             </div>
                           )}
                         </div>
-                        
+
                         {/* Right: Loan Info */}
                         <div className="md:w-2/3 p-6">
                           <div className="flex justify-between items-start mb-4">
                             <div>
                               <h3 className="font-semibold">
-                                ${loan.amount.toLocaleString()} USDC Loan
+                                ${loan.amount.toLocaleString()} {loan.stablecoin || 'USDC'} Loan
                               </h3>
                               <p className="text-sm text-neutral-content">
                                 ID: {loan.id}
@@ -226,32 +240,32 @@ function DashboardContent() {
                             </div>
                             <div className="flex items-center">
                               <span className={`badge ${
-                                loan.status === 'active' ? 'badge-primary' : 
+                                loan.status === 'active' ? 'badge-primary' :
                                 loan.status === 'paid' ? 'badge-success' : 'badge-error'
                               }`}>
                                 {loan.status.toUpperCase()}
                               </span>
                             </div>
                           </div>
-                          
+
                           {/* Progress bar */}
                           <div className="mb-4">
                             <div className="flex justify-between text-sm mb-1">
                               <span>Repayment Progress</span>
                               <span>{calculateProgress(loan)}%</span>
                             </div>
-                            <progress 
-                              className="progress progress-primary w-full" 
-                              value={calculateProgress(loan)} 
+                            <progress
+                              className="progress progress-primary w-full"
+                              value={calculateProgress(loan)}
                               max="100"
                             ></progress>
                           </div>
-                          
+
                           {/* Loan details */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                               <p className="text-sm text-neutral-content">Monthly Payment</p>
-                              <p className="font-medium">${calculateMonthlyPayment(loan)} USDC</p>
+                              <p className="font-medium">${calculateMonthlyPayment(loan)} {loan.stablecoin || 'USDC'}</p>
                             </div>
                             <div>
                               <p className="text-sm text-neutral-content">Next Payment</p>
@@ -259,7 +273,7 @@ function DashboardContent() {
                             </div>
                             <div>
                               <p className="text-sm text-neutral-content">Remaining Balance</p>
-                              <p className="font-medium">${calculateRemainingBalance(loan)} USDC</p>
+                              <p className="font-medium">${calculateRemainingBalance(loan)} {loan.stablecoin || 'USDC'}</p>
                             </div>
                             <div>
                               <p className="text-sm text-neutral-content">Term</p>
@@ -274,7 +288,7 @@ function DashboardContent() {
                               <p className="font-medium">{loan.remainingPayments} of {loan.term}</p>
                             </div>
                           </div>
-                          
+
                           {/* Action buttons */}
                           <div className="mt-6 flex flex-wrap gap-2">
                             <Button size="sm">
@@ -293,7 +307,7 @@ function DashboardContent() {
             )}
           </div>
         )}
-        
+
         {/* Policies Tab */}
         {activeTab === 'policies' && (
           <div>
@@ -310,8 +324,8 @@ function DashboardContent() {
                   <Card key={policy.id} className="shadow-sm">
                     <div className="p-6">
                       <div className="flex">
-                        <Image 
-                          src={policy.imageUrl} 
+                        <Image
+                          src={policy.imageUrl}
                           alt={policy.name}
                           width={100}
                           height={100}
@@ -329,9 +343,9 @@ function DashboardContent() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="divider"></div>
-                      
+
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-sm text-neutral-content">Provider</p>
@@ -350,15 +364,15 @@ function DashboardContent() {
                           <p className="font-medium">${(policy.value * 0.7).toLocaleString()}</p>
                         </div>
                       </div>
-                      
+
                       <div className="mt-6 flex justify-between">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                         >
                           View Details
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           onClick={() => router.push('/loan')}
