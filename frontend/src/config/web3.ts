@@ -18,14 +18,18 @@ export const { connectors } = getDefaultWallets({
 
 
 
-// Configure Wagmi
+// Determine if we're in a development environment
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Configure Wagmi with conditional chains based on environment
 export const config = createConfig({
-  chains: [hardhatLocal, sepolia, mainnet, pharosDevnet],
+  chains: isDevelopment
+    ? [hardhatLocal, sepolia, mainnet, pharosDevnet]
+    : [sepolia, mainnet, pharosDevnet],
   transports: {
     [hardhatLocal.id]: http(),
     [sepolia.id]: http(),
     [mainnet.id]: http(),
-    // add pharos devnet here
     [pharosDevnet.id]: http(),
   },
 });
