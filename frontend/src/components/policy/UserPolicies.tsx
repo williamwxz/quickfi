@@ -37,7 +37,7 @@ export default function UserPolicies() {
 
         if (data.success) {
           // Extract token IDs from the response
-          const tokenIds = data.policies.map((policy: any) => policy.tokenId);
+          const tokenIds = data.policies.map((policy: { tokenId: string }) => policy.tokenId);
           setPolicies(tokenIds);
         } else {
           throw new Error(data.error || 'Unknown error');
@@ -102,7 +102,7 @@ export default function UserPolicies() {
           <CardHeader>
             <CardTitle>No Policies Found</CardTitle>
             <CardDescription>
-              You don't have any tokenized insurance policies yet.
+              You don&apos;t have any tokenized insurance policies yet.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // API route handler
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     // Parse request body
     const body = await request.json();
@@ -15,24 +15,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Simulate loan application processing
     // In a real implementation, this would interact with the blockchain
 
-    // Mock review process and application ID
-    const applicationId = `app-${Date.now()}`;
-    const approvedAmount = Math.min(parseFloat(requestedAmount), 10000); // Mock approval logic
-
-    // Mock successful response
+    // Return a simple response
     return NextResponse.json({
       success: true,
-      applicationId,
+      message: "Loan application would be processed in production",
       tokenId,
       requestedAmount,
-      approvedAmount,
       duration,
-      purpose,
-      status: "pending",
-      applicationDate: new Date().toISOString()
+      purpose
     });
   } catch (error) {
     console.error("Error processing loan application:", error);
@@ -41,4 +33,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

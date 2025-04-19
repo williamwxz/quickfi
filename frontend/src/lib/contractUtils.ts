@@ -1,4 +1,4 @@
-import { createPublicClient, http, getContract } from 'viem';
+import { createPublicClient, http } from 'viem';
 import { hardhatLocal } from '@/config/chains';
 import { InsurancePolicyTokenABI } from '@/config/abi';
 import { getContractAddresses } from './supabaseClient';
@@ -35,12 +35,7 @@ const publicClient = createPublicClient({
   transport: http(),
 });
 
-// Create contract instance
-const policyContract = getContract({
-  address: contractAddress as `0x${string}`,
-  abi: InsurancePolicyTokenABI,
-  publicClient,
-});
+// Note: We're using direct contract calls with publicClient.readContract instead of a contract instance
 
 /**
  * Get policy details from the smart contract
@@ -54,7 +49,7 @@ export async function getPolicyTokenDetails(tokenId: string) {
       abi: InsurancePolicyTokenABI,
       functionName: 'getPolicyTokenDetails',
       args: [BigInt(tokenId)],
-    });
+    }) as [string, bigint, bigint]; // Type assertion for the returned tuple
 
     return {
       owner: details[0],

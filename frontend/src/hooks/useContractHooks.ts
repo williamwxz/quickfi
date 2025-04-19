@@ -80,13 +80,13 @@ export function useTokenOwner(tokenId: string | undefined) {
  * @returns Contract write function, data, and states
  */
 export function useMintPolicyToken() {
-  const { data, isPending, writeContract } = useWriteContract();
+  const { data, isPending, writeContract, error } = useWriteContract();
 
   const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
     hash: data,
   });
 
-  const mintPolicyToken = async (args: any[]) => {
+  const mintPolicyToken = async (args: [`0x${string}`, string, `0x${string}`, string]) => {
     return writeContract({
       address: contractAddress as `0x${string}`,
       abi: InsurancePolicyTokenABI,
@@ -101,6 +101,7 @@ export function useMintPolicyToken() {
     txData,
     isLoading: isPending || isTxLoading,
     isSuccess: isTxSuccess,
+    error,
   };
 }
 
@@ -127,7 +128,7 @@ export function useIsApprovedForAll(owner: string | undefined, operator: string 
  * @returns Contract write function, data, and states
  */
 export function useSetApprovalForAll() {
-  const { data, isPending, writeContract } = useWriteContract();
+  const { data, isPending, writeContract, error } = useWriteContract();
 
   const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
     hash: data,
@@ -148,5 +149,6 @@ export function useSetApprovalForAll() {
     txData,
     isLoading: isPending || isTxLoading,
     isSuccess: isTxSuccess,
+    error,
   };
 }

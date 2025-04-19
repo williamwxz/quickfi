@@ -81,14 +81,12 @@ export default function TokenizePage() {
     try {
       // Call the contract function with Oracle integration
       // The Oracle will determine the policy value and expiry date
-      mintPolicyToken?.({
-        args: [
-          address, // to
-          formData.policyNumber, // policy number
-          formData.documentHash ? `0x${formData.documentHash}` : '0x0000000000000000000000000000000000000000000000000000000000000000', // document hash as bytes32
-          formData.jurisdiction, // jurisdiction
-        ],
-      });
+      await mintPolicyToken?.([
+        address as `0x${string}`, // to
+        formData.policyNumber, // policy number
+        formData.documentHash ? `0x${formData.documentHash}` as `0x${string}` : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // document hash as bytes32
+        formData.jurisdiction, // jurisdiction
+      ]);
 
     } catch (err) {
       console.error('Error tokenizing policy:', err);

@@ -1,5 +1,7 @@
-import { abi as InsurancePolicyTokenABI } from './InsurancePolicyToken.json';
+import InsurancePolicyTokenJSON from './InsurancePolicyToken.json';
+
+const InsurancePolicyTokenABI = InsurancePolicyTokenJSON.abi;
 
 export {
   InsurancePolicyTokenABI,
-}; 
+};

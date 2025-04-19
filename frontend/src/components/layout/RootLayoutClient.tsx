@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 // Web3Provider is used in app/app/layout.tsx, not needed here
 import NavBar from "@/components/layout/NavBar";
 import { usePathname } from 'next/navigation';
+import Head from 'next/head';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,10 +26,10 @@ export default function RootLayoutClient({
 
   return (
     <html lang="en" data-theme="quickfi">
-      <head>
+      <Head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="alternate icon" href="/favicon.ico" />
-      </head>
+      </Head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

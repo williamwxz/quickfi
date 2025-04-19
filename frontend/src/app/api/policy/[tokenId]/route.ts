@@ -1,18 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPolicyTokenDetails, getTokenURI, getOwnerOf } from '@/lib/contractUtils';
 
-/**
- * GET handler for retrieving policy details
- * @param request The incoming request
- * @param params Route parameters including tokenId
- * @returns JSON response with policy details
- */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { tokenId: string } }
+  request: Request,
+  { params }: { params: Promise<{ tokenId: string }> }
 ) {
   try {
-    const { tokenId } = params;
+    const { tokenId } = await params;
     
     if (!tokenId) {
       return NextResponse.json(
@@ -21,12 +15,10 @@ export async function GET(
       );
     }
 
-    // Get policy details from the smart contract
-    const [policyDetails, tokenURI, owner] = await Promise.all([
-      getPolicyTokenDetails(tokenId),
-      getTokenURI(tokenId),
-      getOwnerOf(tokenId)
-    ]);
+    // Get real data from the blockchain
+    const policyDetails = await getPolicyTokenDetails(tokenId);
+    const owner = await getOwnerOf(tokenId);
+    const tokenURI = await getTokenURI(tokenId);
 
     // Format the response
     return NextResponse.json({
@@ -34,11 +26,7 @@ export async function GET(
       tokenId,
       owner,
       tokenURI,
-      policyDetails: {
-        value: policyDetails.value.toString(),
-        expiryTimestamp: policyDetails.expiryTimestamp.toString(),
-        expiryDate: new Date(Number(policyDetails.expiryTimestamp) * 1000).toISOString(),
-      }
+      policyDetails
     });
   } catch (error) {
     console.error("Error fetching policy details:", error);

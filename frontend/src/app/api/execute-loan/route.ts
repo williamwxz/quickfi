@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // API route handler
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     // Parse request body
     const body = await request.json();
@@ -15,18 +15,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Simulate loan execution process
     // In a real implementation, this would interact with the blockchain
     
-    // Mock successful response
+    // Return a simple response
     return NextResponse.json({
       success: true,
+      message: "Loan execution would be processed in production",
       tokenId,
       loanAmount,
-      duration,
-      loanId: `loan-${Date.now()}`,
-      executionDate: new Date().toISOString(),
-      status: "active"
+      duration
     });
   } catch (error) {
     console.error("Error executing loan:", error);
@@ -35,4 +32,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

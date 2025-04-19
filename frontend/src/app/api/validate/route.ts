@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Simple validation rules for insurance documents
 const validInsurers = [
@@ -11,7 +11,7 @@ const validInsurers = [
   'Sample Insurance Co.'
 ];
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const data = await req.json();
     
@@ -74,4 +74,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}
