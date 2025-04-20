@@ -7,16 +7,19 @@ export async function POST(request: Request) {
   try {
     // Parse request body
     const body = await request.json();
+    console.log('Tokenize request:', { policyNumber: body.policyNumber, issuer: body.issuer });
+
     const {
+      address,
       policyNumber,
       faceValue,
       issuer,
       expiryDate,
       documentHash,
       userAddress,
-      chainId = 1337, // Default to localhost if not provided
+      chainId = 1337,
       txHash,
-      policyType = 'Life' // Default to Life insurance if not provided
+      policyType = 'Life'
     } = body;
 
     // Validate required fields
@@ -27,13 +30,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Convert face value to the correct format (assuming 6 decimals for USDC)
+    // Convert values
     const valuationAmount = parseUnits(faceValue.toString(), 6);
-
-    // Convert expiry date to timestamp
     const expiryTimestamp = BigInt(Math.floor(new Date(expiryDate).getTime() / 1000));
-
-    // Convert document hash to bytes32 if provided
     const documentHashBytes32 = documentHash
       ? `0x${documentHash.padEnd(64, '0')}` as `0x${string}`
       : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
@@ -41,6 +40,7 @@ export async function POST(request: Request) {
     // Store the policy data in Supabase
     const policyData: PolicyData = {
       chainId,
+      address,
       policyNumber,
       issuer,
       policyType,
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     const result = await storeTokenizedPolicy(policyData);
 
     if (!result.success) {
+      console.error('Failed to store policy:', result.error);
       return NextResponse.json(
         { error: result.error },
         { status: 500 }
@@ -61,18 +62,18 @@ export async function POST(request: Request) {
     }
 
     // Return formatted data for client-side minting
-    return NextResponse.json({
+    const response = {
       success: true,
       message: result.message,
       chainId,
       txHash: result.txHash || null,
       mintArgs: [
-        userAddress as `0x${string}`, // to
-        policyNumber, // policyNumber
-        issuer as `0x${string}`, // issuer
-        valuationAmount, // valuationAmount
-        expiryTimestamp, // expiryDate
-        documentHashBytes32 // documentHash
+        userAddress as `0x${string}`,
+        policyNumber,
+        issuer as `0x${string}`,
+        valuationAmount.toString(),
+        expiryTimestamp.toString(),
+        documentHashBytes32
       ],
       policyDetails: {
         policyNumber,
@@ -81,9 +82,11 @@ export async function POST(request: Request) {
         expiryDate: expiryTimestamp.toString(),
         documentHash: documentHash || "No document hash provided"
       }
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Error validating policy data:", error);
+    console.error("Error in tokenize API route:", error);
     return NextResponse.json(
       { error: "Failed to validate policy data" },
       { status: 500 }

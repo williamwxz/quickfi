@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS policies (
   expiry_date TIMESTAMP WITH TIME ZONE NOT NULL,
   tokenized_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   document_hash VARCHAR(255),
+  tx_hash VARCHAR(66), -- Transaction hash for the minting transaction
   status VARCHAR(50) CHECK (status IN ('pending', 'active', 'used_as_collateral', 'expired', 'cancelled')) DEFAULT 'pending',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

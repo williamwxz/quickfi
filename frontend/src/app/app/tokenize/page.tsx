@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount, useChainId, useWaitForTransactionReceipt } from 'wagmi';
 import { useMintPolicyToken } from '@/hooks/useContractHooks';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +12,8 @@ import { Loader2, Upload, FileText, CheckCircle, Link } from 'lucide-react';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 import { parseUnits } from 'ethers';
 import { getTransactionUrl } from '@/utils/explorer';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -19,7 +21,7 @@ export const dynamic = 'force-dynamic';
 function TokenizeContent() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { mintPolicyToken, isLoading: isMinting, hash, isSuccess } = useMintPolicyToken(chainId);
+  const { mintPolicyToken, isSuccess, isLoading: isMinting, hash, txData } = useMintPolicyToken(chainId);
 
   const [formData, setFormData] = useState({
     policyNumber: '',
@@ -33,60 +35,66 @@ function TokenizeContent() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Watch for transaction hash and show initial submission message
+  const storePolicyData = async () => {
+      // Get the tokenized policy address from the transaction receipt
+      if (!txData?.logs?.[0]?.address) {
+        throw new Error('Failed to get tokenized policy address');
+      }
+      const tokenAddress = txData.logs[0].address;
+      console.log('Token address:', tokenAddress);
+
+      console.log('Calling /api/tokenize with data:', {
+        chainId,
+        address: tokenAddress,
+        policyNumber: formData.policyNumber,
+        issuer: formData.issuer,
+        policyType: 'Life',
+        faceValue: formData.faceValue,
+        expiryDate: formData.expiryDate,
+        documentHash: formData.documentHash,
+        userAddress: address,
+        txHash: hash,
+      });
+
+      const response = await fetch('/api/tokenize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chainId,
+          address: tokenAddress,
+          policyNumber: formData.policyNumber,
+          issuer: formData.issuer,
+          policyType: 'Life',
+          faceValue: formData.faceValue,
+          expiryDate: formData.expiryDate,
+          documentHash: formData.documentHash,
+          userAddress: address,
+          txHash: hash,
+        }),
+      });
+
+      console.log('API response status:', response.status);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to store policy data');
+      }
+      toast.success('Policy data stored successfully');
+    }
+  
+
+  // Watch for transaction success and show success message
   useEffect(() => {
-    if (hash) {
+    if (isSuccess && hash) {
+      storePolicyData();
       toast.success(
         <div>
-          Transaction submitted! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+          Policy tokenized successfully! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
         </div>
       );
     }
-  }, [hash, chainId]);
-
-  // Watch for transaction success, store policy data, and show final success message
-  useEffect(() => {
-    const storePolicyData = async () => {
-      if (isSuccess && hash) {
-        try {
-          const response = await fetch('/api/tokenize', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              chainId,
-              address: address,
-              ownerAddress: address,
-              policyNumber: formData.policyNumber,
-              issuer: formData.issuer,
-              policyType: 'Life', // Default to Life insurance for now
-              faceValue: formData.faceValue,
-              expiryDate: formData.expiryDate,
-              documentHash: formData.documentHash,
-              txHash: hash,
-            }),
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to store policy data');
-          }
-
-          toast.success(
-            <div>
-              Policy tokenized successfully! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
-            </div>
-          );
-        } catch (error) {
-          console.error('Error storing policy data:', error);
-          toast.error(error instanceof Error ? error.message : 'Failed to store policy data');
-        }
-      }
-    };
-
-    storePolicyData();
-  }, [isSuccess, hash, chainId, address, formData]);
+  }, [isSuccess, hash, chainId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -160,12 +168,11 @@ function TokenizeContent() {
       const expiryTimestamp = BigInt(Math.floor(new Date(formData.expiryDate).getTime() / 1000));
 
       // Convert document hash to bytes32 if provided
-      const documentHashBytes32 = formData.documentHash
+      const documentHashBytes32 = formData.documentHash 
         ? `0x${formData.documentHash.padEnd(64, '0')}` as `0x${string}`
         : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
       // Convert issuer name to a valid address (using a simple hash for demo purposes)
-      // In production, you should use a proper mapping of issuer names to their addresses
       const issuerAddress = `0x${Buffer.from(formData.issuer.toLowerCase())
         .toString('hex')
         .padEnd(40, '0')}` as `0x${string}`;
@@ -180,12 +187,11 @@ function TokenizeContent() {
         documentHashBytes32 // documentHash
       ];
 
+      console.log('Minting policy token with args:', mintArgs);
+      
       // Mint the policy token using the user's wallet
       await mintPolicyToken(mintArgs);
-
-      // The hash will be set by the hook after the transaction is submitted
-      // We'll use the hash from the hook in the useEffect below
-
+      toast.loading('Pending chain confirmation...');
     } catch (error) {
       console.error('Error tokenizing policy:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to tokenize policy');
@@ -195,7 +201,8 @@ function TokenizeContent() {
   };
 
   // Show success message when we have a transaction hash
-  if (hash) {
+  if (isSuccess && !isMinting && hash) {
+    toast.dismiss();
     return (
       <div className="container mx-auto py-8 max-w-3xl">
         <Card className="w-full">
@@ -273,14 +280,26 @@ function TokenizeContent() {
 
             <div className="space-y-2">
               <Label htmlFor="expiryDate">Expiry Date</Label>
-              <Input
-                id="expiryDate"
-                name="expiryDate"
-                value={formData.expiryDate}
-                onChange={handleChange}
-                placeholder="e.g., 2024-06-30"
-                required
-              />
+              <div className="relative">
+                <DatePicker
+                  selected={formData.expiryDate ? new Date(formData.expiryDate) : null}
+                  onChange={(date) => {
+                    if (date) {
+                      setFormData(prev => ({
+                        ...prev,
+                        expiryDate: date.toISOString().split('T')[0]
+                      }));
+                    }
+                  }}
+                  dateFormat="yyyy-MM-dd"
+                  minDate={new Date()}
+                  className="w-full px-3 py-2 border rounded-md bg-white"
+                  placeholderText="e.g., 2025-06-30"
+                  required
+                  calendarClassName="absolute z-50"
+                  showPopperArrow={false}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -367,7 +386,7 @@ function TokenizeContent() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isUploading || isMinting || !isConnected || !formData.policyNumber || !formData.issuer || !formData.faceValue || !formData.expiryDate || !formData.documentHash}
+              disabled={isUploading || isMinting || !isConnected || !formData.policyNumber || !formData.issuer || !formData.faceValue || !formData.expiryDate}
             >
               {isUploading || isMinting ? 'Processing...' : 'Tokenize Policy'}
             </Button>

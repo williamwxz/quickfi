@@ -4,12 +4,16 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-key';
 
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  console.error('Missing Supabase credentials. Please check your environment variables.');
+}
+
 // For server-side operations that need admin privileges
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : null;
 
-// Create client only if URL is provided, otherwise use a mock
+// Create client
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
@@ -19,9 +23,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
  */
 export async function fetchContractAddresses(chainId: number = 1337) {
   try {
-    // Check if we have valid Supabase credentials
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      console.log('Supabase credentials not provided, using environment variables');
       return null;
     }
 
@@ -37,11 +39,9 @@ export async function fetchContractAddresses(chainId: number = 1337) {
     }
 
     if (!data || data.length === 0) {
-      console.log(`No contract addresses found for chain ID: ${chainId}`);
       return null;
     }
 
-    // Convert the data to the expected format
     const addresses: Record<string, string> = {};
     data.forEach(item => {
       addresses[item.contract_name] = item.address;
@@ -87,6 +87,7 @@ export async function getContractAddresses(chainId: number = 1337) {
  */
 export interface PolicyData {
   chainId: number;
+  address: string;
   policyNumber: string;
   issuer: string;
   policyType: string;
@@ -104,18 +105,18 @@ export interface PolicyData {
  */
 export async function storeTokenizedPolicy(policyData: PolicyData) {
   try {
-    // Use admin client if available, otherwise use regular client
-    const client = supabaseAdmin || supabase;
+    if (!supabaseUrl || !supabaseKey) {
+      return { success: false, error: 'Supabase credentials not configured' };
+    }
 
-    // Convert expiry date to ISO string
     const expiryDate = new Date(policyData.expiryDate).toISOString();
 
-    // Insert the policy data
-    const { error } = await client
-      .from('tokenized_policies')
+    const { data, error } = await supabase
+      .from('policies')
       .insert([
         {
           chain_id: policyData.chainId,
+          address: policyData.address,
           policy_number: policyData.policyNumber,
           issuer: policyData.issuer,
           policy_type: policyData.policyType,
@@ -124,14 +125,15 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
           document_hash: policyData.documentHash || null,
           owner_address: policyData.ownerAddress,
           tx_hash: policyData.txHash || null,
-          status: policyData.txHash ? 'pending' : 'draft', // Status based on whether txHash is provided
+          status: 'pending',
           created_at: new Date().toISOString()
         }
-      ]);
+      ])
+      .select();
 
     if (error) {
-      console.error("Error storing policy data in Supabase:", error);
-      return { success: false, error: "Failed to store policy data" };
+      console.error("Error storing policy:", error.message);
+      return { success: false, error: error.message };
     }
 
     return {
@@ -140,7 +142,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
       txHash: policyData.txHash
     };
   } catch (error) {
-    console.error("Error storing policy data:", error);
+    console.error("Error storing policy:", error);
     return { success: false, error: "Failed to store policy data" };
   }
 }
