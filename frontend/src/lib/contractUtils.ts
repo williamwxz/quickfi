@@ -1,37 +1,19 @@
 import { createPublicClient, http } from 'viem';
-import { hardhatLocal } from '@/config/chains';
-import { InsurancePolicyTokenABI } from '@/config/abi';
-import { getContractAddresses } from './supabaseClient';
+import { localhost } from 'viem/chains';
+import { TokenizedPolicyABI } from '@/config/abi';
+import { parseUnits } from 'viem';
+import { getContractAddresses as getContractAddressesFromSupabase } from './supabaseClient';
 
 // Get contract address from environment variable as fallback
 const contractAddressFromEnv = process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS ||
   "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"; // Fallback to local address
 
 // This will be populated with the address from Supabase or env
-let contractAddress = contractAddressFromEnv;
-
-// Initialize contract addresses
-async function initContractAddresses() {
-  try {
-    const addresses = await getContractAddresses('localhost');
-    if (addresses && addresses.TokenizedPolicy) {
-      contractAddress = addresses.TokenizedPolicy;
-      console.log('Using contract address from Supabase:', contractAddress);
-    } else {
-      console.log('Using contract address from env:', contractAddress);
-    }
-  } catch (error) {
-    console.error('Error initializing contract addresses:', error);
-    console.log('Falling back to env contract address:', contractAddress);
-  }
-}
-
-// Call the initialization function
-initContractAddresses();
+const contractAddress = contractAddressFromEnv;
 
 // Create a public client for read operations
 const publicClient = createPublicClient({
-  chain: hardhatLocal,
+  chain: localhost,
   transport: http(),
 });
 
@@ -46,7 +28,7 @@ export async function getPolicyTokenDetails(policyAddress: string) {
   try {
     const details = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
-      abi: InsurancePolicyTokenABI,
+      abi: TokenizedPolicyABI,
       functionName: 'getPolicyTokenDetails',
       args: [policyAddress],
     }) as [string, bigint, bigint]; // Type assertion for the returned tuple
@@ -69,30 +51,12 @@ export async function getPolicyTokenDetails(policyAddress: string) {
  */
 export async function getPolicyMetadata(policyAddress: string) {
   try {
-    // Query the blockchain for policy metadata
-
-    // For on-chain tokens, we can use the address directly
     const metadata = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
-      abi: InsurancePolicyTokenABI,
+      abi: TokenizedPolicyABI,
       functionName: 'getPolicyMetadata',
-      args: [policyAddress], // Use the address directly instead of converting to BigInt
+      args: [policyAddress],
     });
-
-    // In a real implementation, we might also check Supabase for off-chain tokens
-    // if (chainId) {
-    //   // Query Supabase for metadata using chainId and policyAddress
-    //   const { data } = await supabase
-    //     .from('policies')
-    //     .select('metadata')
-    //     .eq('chain_id', chainId)
-    //     .eq('address', policyAddress)
-    //     .single();
-    //
-    //   if (data?.metadata) {
-    //     return data.metadata;
-    //   }
-    // }
 
     return metadata;
   } catch (error) {
@@ -110,7 +74,7 @@ export async function getTokenURI(policyAddress: string) {
   try {
     const uri = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
-      abi: InsurancePolicyTokenABI,
+      abi: TokenizedPolicyABI,
       functionName: 'tokenURI',
       args: [policyAddress],
     });
@@ -131,7 +95,7 @@ export async function getOwnerOf(policyAddress: string) {
   try {
     const owner = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
-      abi: InsurancePolicyTokenABI,
+      abi: TokenizedPolicyABI,
       functionName: 'ownerOf',
       args: [policyAddress],
     });
@@ -141,4 +105,81 @@ export async function getOwnerOf(policyAddress: string) {
     console.error('Error getting token owner:', error);
     throw error;
   }
+}
+
+/**
+ * Mint a new policy token on the blockchain
+ * @param chainId The chain ID to mint on
+ * @param policyNumber The policy number
+ * @param faceValue The face value of the policy
+ * @param issuer The issuer of the policy
+ * @param expiryDate The expiry date of the policy
+ * @param documentHash The document hash as bytes32
+ * @param userAddress The address of the user
+ * @returns The transaction hash and policy ID
+ */
+export async function mintPolicyToken(
+  chainId: number,
+  policyNumber: string,
+  faceValue: number,
+  issuer: string,
+  expiryDate: string,
+  documentHash: string,
+  userAddress: string
+) {
+  try {
+    // Get contract addresses for the specified chain
+    const contractAddresses = await getContractAddresses(chainId);
+    if (!contractAddresses?.TokenizedPolicy) {
+      throw new Error('Contract address not found for the specified chain');
+    }
+
+    // Create a public client for the specified chain
+    const client = createPublicClient({
+      chain: localhost, // TODO: Support other chains
+      transport: http()
+    });
+
+    // Convert face value to the correct format (assuming 6 decimals for USDC)
+    const valuationAmount = parseUnits(faceValue.toString(), 6);
+
+    // Convert expiry date to timestamp
+    const expiryTimestamp = BigInt(Math.floor(new Date(expiryDate).getTime() / 1000));
+
+    // Convert document hash to bytes32
+    const documentHashBytes32 = `0x${documentHash.padEnd(64, '0')}` as `0x${string}`;
+
+    // Prepare the arguments for the mintPolicy function
+    const args = [
+      userAddress as `0x${string}`, // to
+      policyNumber, // policyNumber
+      issuer as `0x${string}`, // issuer
+      valuationAmount, // valuationAmount
+      expiryTimestamp, // expiryDate
+      documentHashBytes32 // documentHash
+    ] as const;
+
+    // Simulate the transaction first
+    const { result } = await client.simulateContract({
+      address: contractAddresses.TokenizedPolicy as `0x${string}`,
+      abi: TokenizedPolicyABI,
+      functionName: 'mintPolicy',
+      args
+    });
+
+    // In a real implementation, we would use a backend wallet to sign and send the transaction
+    // For now, we'll return a simulated transaction hash
+    return {
+      hash: `0x${Math.random().toString(16).substring(2, 66)}`,
+      policyId: result as bigint
+    };
+  } catch (error) {
+    console.error('Error minting policy token:', error);
+    throw error;
+  }
+}
+
+export async function getContractAddresses(chainId: number = 1337) {
+  const contractAddress = await getContractAddressesFromSupabase(chainId);
+  return contractAddress;
 }

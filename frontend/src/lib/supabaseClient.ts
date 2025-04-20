@@ -9,10 +9,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Fetch contract addresses from Supabase
- * @param network The blockchain network to fetch addresses for
+ * @param chainId The blockchain chain ID to fetch addresses for
  * @returns An object with contract names as keys and addresses as values
  */
-export async function fetchContractAddresses(network: string = 'localhost') {
+export async function fetchContractAddresses(chainId: number = 1337) {
   try {
     // Check if we have valid Supabase credentials
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -23,7 +23,7 @@ export async function fetchContractAddresses(network: string = 'localhost') {
     const { data, error } = await supabase
       .from('contract_addresses')
       .select('contract_name, address')
-      .eq('network', network)
+      .eq('chain_id', chainId)
       .eq('is_current', true);
 
     if (error) {
@@ -32,7 +32,7 @@ export async function fetchContractAddresses(network: string = 'localhost') {
     }
 
     if (!data || data.length === 0) {
-      console.log(`No contract addresses found for network: ${network}`);
+      console.log(`No contract addresses found for chain ID: ${chainId}`);
       return null;
     }
 
@@ -65,11 +65,11 @@ export function getContractAddressesFromEnv() {
 
 /**
  * Get contract addresses, first trying Supabase, then falling back to environment variables
- * @param network The blockchain network to fetch addresses for
+ * @param chainId The blockchain chain ID to fetch addresses for
  * @returns An object with contract names as keys and addresses as values
  */
-export async function getContractAddresses(network: string = 'localhost') {
-  const supabaseAddresses = await fetchContractAddresses(network);
+export async function getContractAddresses(chainId: number = 1337) {
+  const supabaseAddresses = await fetchContractAddresses(chainId);
   if (supabaseAddresses) {
     return supabaseAddresses;
   }

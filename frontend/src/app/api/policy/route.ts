@@ -1,41 +1,18 @@
 import { NextResponse } from 'next/server';
 import { supabase, getContractAddresses } from '@/lib/supabaseClient';
 
-// Initialize with fallback address
-let TOKEN_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS ||
-  "0x8B5CF6696FbFc30B7a8ABCB8E4E1cb73416Ed96b"; // Fallback to example address
-
-// Function to initialize contract address
-async function initContractAddress() {
-  try {
-    const addresses = await getContractAddresses('localhost');
-    if (addresses) {
-      // Convert to a regular object to avoid type issues
-      const addressObj = addresses as Record<string, string>;
-
-      // Try both possible contract names
-      if (addressObj['TokenizedPolicy']) {
-        TOKEN_CONTRACT_ADDRESS = addressObj['TokenizedPolicy'];
-        console.log('API using TokenizedPolicy address from Supabase:', TOKEN_CONTRACT_ADDRESS);
-      } else if (addressObj['InsurancePolicyToken']) {
-        TOKEN_CONTRACT_ADDRESS = addressObj['InsurancePolicyToken'];
-        console.log('API using InsurancePolicyToken address from Supabase:', TOKEN_CONTRACT_ADDRESS);
-      }
-    }
-  } catch (error) {
-    console.error('Error initializing contract address in API:', error);
-  }
-}
-
 /**
  * GET handler for retrieving all policies
  * @returns JSON response with all policies
  */
-export async function GET() {
-  // Initialize contract address before processing request
-  await initContractAddress();
-
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const chainId = searchParams.get('chainId') ? parseInt(searchParams.get('chainId')!) : 1337;
+
+    // Get contract addresses from Supabase
+    const addressObj = await getContractAddresses(chainId);
+
     // Fetch policies from Supabase
     const { data, error } = await supabase
       .from('policies')
@@ -49,7 +26,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      contractAddress: TOKEN_CONTRACT_ADDRESS,
+      contractAddress: addressObj['TokenizedPolicy'],
       policies: data || []
     });
   } catch (error) {

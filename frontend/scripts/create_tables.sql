@@ -6,14 +6,15 @@ CREATE TABLE IF NOT EXISTS contract_addresses (
   id SERIAL PRIMARY KEY,
   contract_name VARCHAR(255) NOT NULL,
   address VARCHAR(42) NOT NULL,
-  network VARCHAR(50) NOT NULL,
+  chain_id INTEGER NOT NULL,
   is_current BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), 
+  UNIQUE(chain_id, contract_name)
 );
 
 -- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_contract_addresses_network ON contract_addresses(network);
+CREATE INDEX IF NOT EXISTS idx_contract_addresses_chain_id ON contract_addresses(chain_id);
 CREATE INDEX IF NOT EXISTS idx_contract_addresses_is_current ON contract_addresses(is_current);
 
 -- Create policies table with chain_id
@@ -63,13 +64,13 @@ CREATE INDEX IF NOT EXISTS idx_loans_chain_collateral ON loans(chain_id, collate
 CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 
 -- Add sample contract addresses for localhost network
-INSERT INTO contract_addresses (contract_name, address, network, is_current)
+INSERT INTO contract_addresses (contract_name, address, chain_id, is_current)
 VALUES
-  ('InsurancePolicyToken', '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0', 'localhost', TRUE),
-  ('RiskEngine', '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9', 'localhost', TRUE),
-  ('LoanOrigination', '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9', 'localhost', TRUE),
-  ('MorphoAdapter', '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707', 'localhost', TRUE),
-  ('Stablecoin', '0x5FbDB2315678afecb367f032d93F642f64180aa3', 'localhost', TRUE);
+  ('TokenizedPolicy', '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0', 1337, TRUE),
+  ('RiskEngine', '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9', 1337, TRUE),
+  ('LoanOrigination', '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9', 1337, TRUE),
+  ('MorphoAdapter', '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707', 1337, TRUE),
+  ('Stablecoin', '0x5FbDB2315678afecb367f032d93F642f64180aa3', 1337, TRUE);
 
 -- Add sample data for policies (using chain_id 1337 for localhost)
 INSERT INTO policies (chain_id, address, owner_address, policy_number, issuer, policy_type, face_value, expiry_date, document_hash, status)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { useMintPolicyToken } from '@/hooks/useContractHooks';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,18 +10,21 @@ import { Label } from '@/components/ui/Label';
 import { toast } from 'react-toastify';
 import { Loader2, Upload, FileText, CheckCircle } from 'lucide-react';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
+import { parseUnits } from 'ethers';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
 
 function TokenizeContent() {
   const { address, isConnected } = useAccount();
-  const { mintPolicyToken, isLoading, isSuccess, error } = useMintPolicyToken();
+  const chainId = useChainId();
+  const { mintPolicyToken, isLoading: isMinting, hash } = useMintPolicyToken(chainId);
 
   const [formData, setFormData] = useState({
     policyNumber: '',
     issuer: '',
-    jurisdiction: '',
+    faceValue: '',
+    expiryDate: '',
     documentHash: '',
   });
 
@@ -73,30 +76,53 @@ function TokenizeContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!isConnected || !address) {
-      toast.error('Please connect your wallet to tokenize a policy.');
+      toast.error('Please connect your wallet first');
       return;
     }
 
     try {
-      // Call the contract function with Oracle integration
-      // The Oracle will determine the policy value and expiry date
-      await mintPolicyToken?.([
-        address as `0x${string}`, // to
-        formData.policyNumber, // policy number
-        formData.documentHash ? `0x${formData.documentHash}` as `0x${string}` : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // document hash as bytes32
-        formData.jurisdiction, // jurisdiction
-      ]);
+      setIsUploading(true);
 
-    } catch (err) {
-      console.error('Error tokenizing policy:', err);
-      toast.error('Failed to tokenize policy. Please try again.');
+      // Convert face value to the correct format (assuming 6 decimals for USDC)
+      const valuationAmount = parseUnits(formData.faceValue.toString(), 6);
+
+      // Convert expiry date to timestamp
+      const expiryTimestamp = BigInt(Math.floor(new Date(formData.expiryDate).getTime() / 1000));
+
+      // Convert document hash to bytes32 if provided
+      const documentHashBytes32 = formData.documentHash 
+        ? `0x${formData.documentHash.padEnd(64, '0')}` as `0x${string}`
+        : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
+
+      // Convert issuer name to a valid address (using a simple hash for demo purposes)
+      // In production, you should use a proper mapping of issuer names to their addresses
+      const issuerAddress = `0x${Buffer.from(formData.issuer.toLowerCase())
+        .toString('hex')
+        .padEnd(40, '0')}` as `0x${string}`;
+
+      // Prepare the arguments for the mintPolicy function
+      const mintArgs: [`0x${string}`, string, `0x${string}`, bigint, bigint, `0x${string}`] = [
+        address as `0x${string}`, // to
+        formData.policyNumber, // policyNumber
+        issuerAddress, // issuer
+        valuationAmount, // valuationAmount
+        expiryTimestamp, // expiryDate
+        documentHashBytes32 // documentHash
+      ];
+
+      // Mint the policy token using the user's wallet
+      await mintPolicyToken(mintArgs);
+    } catch (error) {
+      console.error('Error tokenizing policy:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to tokenize policy');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  // Show success message when tokenization is successful
-  if (isSuccess) {
+  // Show success message when we have a transaction hash
+  if (hash) {
     return (
       <div className="container mx-auto py-8 max-w-3xl">
         <Card className="w-full">
@@ -157,13 +183,25 @@ function TokenizeContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="jurisdiction">Jurisdiction</Label>
+              <Label htmlFor="faceValue">Face Value</Label>
               <Input
-                id="jurisdiction"
-                name="jurisdiction"
-                value={formData.jurisdiction}
+                id="faceValue"
+                name="faceValue"
+                value={formData.faceValue}
                 onChange={handleChange}
-                placeholder="e.g., United States"
+                placeholder="e.g., $1,000,000"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expiryDate">Expiry Date</Label>
+              <Input
+                id="expiryDate"
+                name="expiryDate"
+                value={formData.expiryDate}
+                onChange={handleChange}
+                placeholder="e.g., 2024-06-30"
                 required
               />
             </div>
@@ -249,14 +287,12 @@ function TokenizeContent() {
               </p>
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm">
-                Error: {error instanceof Error ? error.message : 'Unknown error'}
-              </p>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isLoading || !isConnected}>
-              {isLoading ? 'Processing...' : 'Tokenize Policy'}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isUploading || isMinting || !isConnected}
+            >
+              {isUploading || isMinting ? 'Processing...' : 'Tokenize Policy'}
             </Button>
           </form>
         </CardContent>
