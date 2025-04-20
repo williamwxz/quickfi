@@ -1,14 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+import { ethers } from 'hardhat';
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Load environment variables
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_KEY || '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
 
 // Check if environment variables are set
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Error: SUPABASE_URL and SUPABASE_KEY environment variables must be set');
+  console.error('Error: SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set');
   process.exit(1);
 }
 
@@ -17,49 +22,64 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function uploadContractAddresses() {
   try {
+    // Get the current network's chain ID
+    const network = await ethers.provider.getNetwork();
+    const chainId = Number(network.chainId);
+
     // Read the deployed addresses from the JSON file
     const addressesPath = path.join(__dirname, '../deployed-addresses.json');
     const addressesData = JSON.parse(fs.readFileSync(addressesPath, 'utf8'));
 
-    // Get the network and addresses
-    const networks = Object.keys(addressesData);
+    // Get the current network's addresses
+    const networkName = network.name;
+    const addresses = addressesData[networkName];
+    if (!addresses) {
+      console.error(`No addresses found for network: ${networkName}`);
+      return;
+    }
 
-    for (const network of networks) {
-      const addresses = addressesData[network];
-      const timestamp = new Date().toISOString();
+    const timestamp = new Date().toISOString();
 
-      // Upload each contract address to Supabase
-      for (const [contractName, address] of Object.entries(addresses)) {
-        const { data, error } = await supabase
-          .from('contract_addresses')
-          .upsert({
-            network,
-            contract_name: contractName,
-            address: address as string,
-            deployed_at: timestamp,
-            is_current: true
-          }, {
-            onConflict: 'network,contract_name',
-            ignoreDuplicates: false
-          });
+    // First, mark all existing addresses for this chain_id as not current
+    const { error: updateError } = await supabase
+      .from('contract_addresses')
+      .update({ is_current: false })
+      .eq('chain_id', chainId);
 
-        if (error) {
-          console.error(`Error uploading ${contractName} address:`, error);
-        } else {
-          console.log(`Successfully uploaded ${contractName} address to Supabase`);
-        }
+    if (updateError) {
+      console.error("Error updating existing addresses:", updateError);
+    }
+
+    // Upload each contract address to Supabase
+    for (const [contractName, address] of Object.entries(addresses)) {
+      const { error } = await supabase
+        .from('contract_addresses')
+        .upsert({
+          contract_name: contractName,
+          address: address as string,
+          chain_id: chainId,
+          is_current: true,
+          created_at: timestamp,
+          updated_at: timestamp
+        }, {
+          onConflict: 'chain_id,contract_name',
+          ignoreDuplicates: false
+        });
+
+      if (error) {
+        console.error(`Error uploading ${contractName} address:`, error);
+      } else {
+        console.log(`Successfully uploaded ${contractName} address to Supabase`);
       }
     }
 
     console.log('All contract addresses uploaded to Supabase');
 
-    // Update frontend .env.local file for each network
-    for (const network of networks) {
-      try {
-        await updateFrontendEnv(network, addressesData[network]);
-      } catch (error) {
-        console.error(`Error updating frontend .env for ${network}:`, error);
-      }
+    // Update frontend .env.local file
+    try {
+      await updateFrontendEnv(networkName, addresses);
+    } catch (error) {
+      console.error(`Error updating frontend .env for ${networkName}:`, error);
     }
   } catch (error) {
     console.error('Error uploading contract addresses:', error);

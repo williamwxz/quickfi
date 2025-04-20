@@ -17,6 +17,15 @@ interface LoanOrigination extends BaseContract {
 }
 
 async function main() {
+  // Validate Supabase credentials before starting deployment
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    console.error("Error: SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required");
+    console.error("Please add them to your .env file:");
+    console.error("SUPABASE_URL=your_supabase_url");
+    console.error("SUPABASE_ANON_KEY=your_supabase_anon_key");
+    process.exit(1);
+  }
+
   const network = await ethers.provider.getNetwork();
   console.log("Deploying QuickFi contracts to", network.name);
 
@@ -275,29 +284,41 @@ async function main() {
   console.log("\nAddresses saved to", addressesPath);
 
   // Automatically upload addresses to Supabase if credentials are available
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
     console.log("\nUploading addresses to Supabase...");
     try {
       // Initialize Supabase client
       const supabase = createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_KEY
+        process.env.SUPABASE_ANON_KEY
       );
 
-      const timestamp = new Date().toISOString();
+      // Convert chainId from BigInt to number
+      const chainId = Number(network.chainId);
+
+      // First, mark all existing addresses for this chain_id as not current
+      const { error: updateError } = await supabase
+        .from('contract_addresses')
+        .update({ is_current: false })
+        .eq('chain_id', chainId);
+
+      if (updateError) {
+        console.error("Error updating existing addresses:", updateError);
+      }
 
       // Upload each contract address to Supabase
       for (const [contractName, address] of Object.entries(deployedAddresses)) {
         const { error } = await supabase
           .from('contract_addresses')
           .upsert({
-            network: network.name,
             contract_name: contractName,
             address: address as string,
-            deployed_at: timestamp,
-            is_current: true
+            chain_id: chainId,
+            is_current: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }, {
-            onConflict: 'network,contract_name',
+            onConflict: 'chain_id,contract_name',
             ignoreDuplicates: false
           });
 
