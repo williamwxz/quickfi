@@ -39,16 +39,16 @@ const publicClient = createPublicClient({
 
 /**
  * Get policy details from the smart contract
- * @param tokenId The token ID of the policy
+ * @param policyAddress The address of the policy token
  * @returns Policy details including owner, value, and expiry timestamp
  */
-export async function getPolicyTokenDetails(tokenId: string) {
+export async function getPolicyTokenDetails(policyAddress: string) {
   try {
     const details = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
       abi: InsurancePolicyTokenABI,
       functionName: 'getPolicyTokenDetails',
-      args: [BigInt(tokenId)],
+      args: [policyAddress],
     }) as [string, bigint, bigint]; // Type assertion for the returned tuple
 
     return {
@@ -63,18 +63,36 @@ export async function getPolicyTokenDetails(tokenId: string) {
 }
 
 /**
- * Get policy metadata from the smart contract
- * @param tokenId The token ID of the policy
- * @returns Policy metadata as bytes
+ * Get policy metadata from the smart contract or database
+ * @param policyAddress The address of the policy token
+ * @returns Policy metadata as bytes or JSON
  */
-export async function getPolicyMetadata(tokenId: string) {
+export async function getPolicyMetadata(policyAddress: string) {
   try {
+    // Query the blockchain for policy metadata
+
+    // For on-chain tokens, we can use the address directly
     const metadata = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
       abi: InsurancePolicyTokenABI,
       functionName: 'getPolicyMetadata',
-      args: [BigInt(tokenId)],
+      args: [policyAddress], // Use the address directly instead of converting to BigInt
     });
+
+    // In a real implementation, we might also check Supabase for off-chain tokens
+    // if (chainId) {
+    //   // Query Supabase for metadata using chainId and policyAddress
+    //   const { data } = await supabase
+    //     .from('policies')
+    //     .select('metadata')
+    //     .eq('chain_id', chainId)
+    //     .eq('address', policyAddress)
+    //     .single();
+    //
+    //   if (data?.metadata) {
+    //     return data.metadata;
+    //   }
+    // }
 
     return metadata;
   } catch (error) {
@@ -85,16 +103,16 @@ export async function getPolicyMetadata(tokenId: string) {
 
 /**
  * Get token URI from the smart contract
- * @param tokenId The token ID of the policy
+ * @param policyAddress The address of the policy token
  * @returns Token URI string
  */
-export async function getTokenURI(tokenId: string) {
+export async function getTokenURI(policyAddress: string) {
   try {
     const uri = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
       abi: InsurancePolicyTokenABI,
       functionName: 'tokenURI',
-      args: [BigInt(tokenId)],
+      args: [policyAddress],
     });
 
     return uri;
@@ -106,16 +124,16 @@ export async function getTokenURI(tokenId: string) {
 
 /**
  * Get owner of a policy token
- * @param tokenId The token ID of the policy
+ * @param policyAddress The address of the policy token
  * @returns Owner address
  */
-export async function getOwnerOf(tokenId: string) {
+export async function getOwnerOf(policyAddress: string) {
   try {
     const owner = await publicClient.readContract({
       address: contractAddress as `0x${string}`,
       abi: InsurancePolicyTokenABI,
       functionName: 'ownerOf',
-      args: [BigInt(tokenId)],
+      args: [policyAddress],
     });
 
     return owner;

@@ -9,68 +9,68 @@ const contractAddress = process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS |
 
 /**
  * Hook to read policy token details
- * @param tokenId The token ID to query
+ * @param policyAddress The policy token address to query
  * @returns Policy token details including loading and error states
  */
-export function usePolicyTokenDetails(tokenId: string | undefined) {
+export function usePolicyTokenDetails(policyAddress: string | undefined) {
   return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'getPolicyTokenDetails',
-    args: tokenId ? [BigInt(tokenId)] : undefined,
+    args: policyAddress ? [policyAddress] : undefined,
     query: {
-      enabled: !!tokenId,
+      enabled: !!policyAddress,
     },
   });
 }
 
 /**
  * Hook to read policy metadata
- * @param tokenId The token ID to query
+ * @param policyAddress The policy token address to query
  * @returns Policy metadata including loading and error states
  */
-export function usePolicyMetadata(tokenId: string | undefined) {
+export function usePolicyMetadata(policyAddress: string | undefined) {
   return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'getPolicyMetadata',
-    args: tokenId ? [BigInt(tokenId)] : undefined,
+    args: policyAddress ? [policyAddress] : undefined,
     query: {
-      enabled: !!tokenId,
+      enabled: !!policyAddress,
     },
   });
 }
 
 /**
  * Hook to read token URI
- * @param tokenId The token ID to query
+ * @param policyAddress The policy token address to query
  * @returns Token URI including loading and error states
  */
-export function useTokenURI(tokenId: string | undefined) {
+export function useTokenURI(policyAddress: string | undefined) {
   return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'tokenURI',
-    args: tokenId ? [BigInt(tokenId)] : undefined,
+    args: policyAddress ? [policyAddress] : undefined,
     query: {
-      enabled: !!tokenId,
+      enabled: !!policyAddress,
     },
   });
 }
 
 /**
  * Hook to read token owner
- * @param tokenId The token ID to query
+ * @param policyAddress The policy token address to query
  * @returns Token owner address including loading and error states
  */
-export function useTokenOwner(tokenId: string | undefined) {
+export function useTokenOwner(policyAddress: string | undefined) {
   return useReadContract({
     address: contractAddress as `0x${string}`,
     abi: InsurancePolicyTokenABI,
     functionName: 'ownerOf',
-    args: tokenId ? [BigInt(tokenId)] : undefined,
+    args: policyAddress ? [policyAddress] : undefined,
     query: {
-      enabled: !!tokenId,
+      enabled: !!policyAddress,
     },
   });
 }

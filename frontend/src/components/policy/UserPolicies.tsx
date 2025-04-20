@@ -94,7 +94,7 @@ export default function UserPolicies() {
       ) : policies.length > 0 ? (
         <div className="space-y-4">
           {policies.map((tokenId) => (
-            <PolicyDetails key={tokenId} tokenId={tokenId} />
+            <PolicyDetails key={tokenId} policyAddress={tokenId} />
           ))}
         </div>
       ) : (

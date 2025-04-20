@@ -15,6 +15,7 @@ import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 import { LTV_PARAMS, SUPPORTED_STABLECOINS, DEFAULT_STABLECOIN } from '@/config/loanParams';
 import { getTokenConfig } from '@/config/tokens';
 import { useAccount } from 'wagmi';
+import { formatAddress, getExplorerUrl } from '@/utils/explorer';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,8 @@ export const dynamic = 'force-dynamic';
 // Define the policy type
 type Policy = {
   id: number;
-  token_id: string;
+  chain_id: number;
+  address: string; // On-chain policy token address
   policy_number: string;
   face_value: number;
   expiry_date: string;
@@ -36,6 +38,7 @@ type Policy = {
 function LoanClientContent() {
   const searchParams = useSearchParams();
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
+  const [selectedPolicyChainId, setSelectedPolicyChainId] = useState<number | null>(null);
   const [loanAmount, setLoanAmount] = useState<number>(0);
   const [loanTerm, setLoanTerm] = useState<number>(30);
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -71,21 +74,30 @@ function LoanClientContent() {
     fetchPolicies();
   }, []);
 
-  // Check for policyId in URL query parameters
+  // Check for policyAddress and chainId in URL query parameters
   useEffect(() => {
     if (!searchParams) return;
 
-    const policyId = searchParams.get('policyId');
-    if (policyId && policies.length > 0) {
+    const policyAddress = searchParams.get('policyAddress');
+    const chainId = searchParams.get('chainId');
+
+    if (policyAddress && policies.length > 0) {
       // Check if the policy exists in our data
-      const policyExists = policies.some(policy => policy.token_id === policyId);
+      const policyExists = chainId
+        ? policies.some(policy => policy.address === policyAddress && policy.chain_id === Number(chainId))
+        : policies.some(policy => policy.address === policyAddress);
+
       if (policyExists) {
-        setSelectedPolicy(policyId);
+        setSelectedPolicy(policyAddress);
 
         // Set initial loan amount to 50% of the policy value
-        const policy = policies.find(p => p.token_id === policyId);
+        const policy = chainId
+          ? policies.find(p => p.address === policyAddress && p.chain_id === Number(chainId))
+          : policies.find(p => p.address === policyAddress);
+
         if (policy) {
           setLoanAmount(policy.face_value * 0.5);
+          setSelectedPolicyChainId(policy.chain_id);
         }
       }
     }
@@ -93,7 +105,7 @@ function LoanClientContent() {
 
   // LTV = Loan to Value ratio
   const ltv = selectedPolicy
-    ? (loanAmount / (policies.find(p => p.token_id === selectedPolicy)?.face_value || 1)) * 100
+    ? (loanAmount / (policies.find(p => p.address === selectedPolicy)?.face_value || 1)) * 100
     : 0;
 
   // Check if LTV exceeds maximum
@@ -122,25 +134,30 @@ function LoanClientContent() {
     }
 
     try {
-      // Generate a unique loan ID
-      const loanId = `LOAN-${Date.now()}`;
-
       // Get the selected policy
-      const policy = policies.find(p => p.token_id === selectedPolicy);
+      const policy = policies.find(p => p.address === selectedPolicy);
 
       if (!policy) {
         alert('Selected policy not found');
         return;
       }
 
+      // Generate a unique loan address
+      // In a real implementation, this would be the address of the loan contract
+      // For now, we'll use a deterministic address based on the policy and timestamp
+      const timestamp = Date.now().toString(16);
+      const policyAddress = policy.address.toLowerCase();
+      const loanAddress = `0x${policyAddress.slice(2, 12)}${timestamp.padStart(30, '0')}`.slice(0, 42);
+
       // Insert the loan into Supabase
       const { error } = await supabase
         .from('loans')
         .insert([
           {
-            loan_id: loanId,
+            chain_id: policy.chain_id,
+            address: loanAddress,
             borrower_address: policy.owner_address,
-            collateral_token_id: policy.token_id,
+            collateral_address: policy.address,
             loan_amount: loanAmount,
             interest_rate: interestRate,
             term_days: loanTerm,
@@ -161,7 +178,8 @@ function LoanClientContent() {
       const { error: policyError } = await supabase
         .from('policies')
         .update({ status: 'used_as_collateral' })
-        .eq('token_id', policy.token_id);
+        .eq('address', policy.address)
+        .eq('chain_id', policy.chain_id);
 
       if (policyError) {
         console.error('Error updating policy status:', policyError);
@@ -206,11 +224,11 @@ function LoanClientContent() {
                       <RadioGroup value={selectedPolicy || ''} onValueChange={setSelectedPolicy}>
                         <div className="space-y-4">
                           {policies.map((policy) => (
-                            <div key={policy.token_id} className="flex items-center space-x-3 p-4 rounded-lg border">
-                              <RadioGroupItem value={policy.token_id} id={policy.token_id} />
-                              <Label htmlFor={policy.token_id} className="flex flex-1 justify-between cursor-pointer">
+                            <div key={policy.address} className="flex items-center space-x-3 p-4 rounded-lg border">
+                              <RadioGroupItem value={policy.address} id={policy.address} />
+                              <Label htmlFor={policy.address} className="flex flex-1 justify-between cursor-pointer">
                                 <div>
-                                  <div className="font-medium">Token #{policy.token_id}</div>
+                                  <div className="font-medium">Policy {formatAddress(policy.address)}</div>
                                   <div className="text-sm text-gray-500">Policy: {policy.policy_number}</div>
                                   <div className="text-sm text-gray-500">Issuer: {policy.issuer}</div>
                                 </div>
@@ -353,7 +371,18 @@ function LoanClientContent() {
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Collateral:</span>
-                  <span className="font-medium">{selectedPolicy || '-'}</span>
+                  {selectedPolicy ? (
+                    <a
+                      href={getExplorerUrl(selectedPolicy, selectedPolicyChainId || undefined)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-blue-600 hover:underline"
+                    >
+                      {formatAddress(selectedPolicy)}
+                    </a>
+                  ) : (
+                    <span className="font-medium">-</span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Loan Amount:</span>

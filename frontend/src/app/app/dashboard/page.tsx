@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
+import { formatAddress } from '@/utils/explorer';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,8 @@ export const dynamic = 'force-dynamic';
 // Define types for our data
 type Policy = {
   id: number;
-  token_id: string;
+  chain_id: number;
+  address: string; // On-chain policy token address
   policy_number: string;
   face_value: number;
   expiry_date: string;
@@ -28,9 +30,10 @@ type Policy = {
 
 type Loan = {
   id: number;
-  loan_id: string;
+  chain_id: number;
+  address: string; // On-chain loan address
   borrower_address: string;
-  collateral_token_id: string;
+  collateral_address: string; // Policy token address used as collateral
   loan_amount: number;
   interest_rate: number;
   term_days: number;
@@ -114,8 +117,8 @@ function DashboardContent() {
   }, []);
 
   // Function to handle "Use as Collateral" button click
-  const handleUseAsCollateral = (policyId: string) => {
-    router.push(`/app/loan?policyId=${policyId}`);
+  const handleUseAsCollateral = (policyAddress: string, chainId: number) => {
+    router.push(`/app/loan?policyAddress=${policyAddress}&chainId=${chainId}`);
   };
 
   // Format metrics for display
@@ -262,7 +265,7 @@ function DashboardContent() {
                   <div className="flex items-center justify-between">
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold">Token #{policy.token_id}</h3>
+                        <h3 className="text-lg font-semibold">Policy {formatAddress(policy.address)}</h3>
                         <Badge
                           variant={isAvailable ? "default" : "secondary"}
                           className={isAvailable ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}
@@ -291,14 +294,14 @@ function DashboardContent() {
                         <Button
                           variant="outline"
                           className="text-blue-600 border-blue-600"
-                          onClick={() => handleUseAsCollateral(policy.token_id)}
+                          onClick={() => handleUseAsCollateral(policy.address, policy.chain_id)}
                         >
                           Use as Collateral
                         </Button>
                       )}
                       <Button
                         variant="ghost"
-                        onClick={() => router.push(`/app/policy/${policy.token_id}`)}
+                        onClick={() => router.push(`/app/policy/${policy.address}?chainId=${policy.chain_id}`)}
                       >
                         View Details
                       </Button>
@@ -368,7 +371,7 @@ function DashboardContent() {
           ) : (
             loans.map((loan) => {
               // Find the associated policy
-              const policy = policies.find(p => p.token_id === loan.collateral_token_id);
+              const policy = policies.find(p => p.address === loan.collateral_address);
 
               // Calculate days remaining
               const endDate = new Date(loan.end_date);
@@ -393,7 +396,7 @@ function DashboardContent() {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold">{loan.loan_id}</h3>
+                        <h3 className="text-lg font-semibold">Loan {formatAddress(loan.address)}</h3>
                         <Badge variant="secondary" className={statusClass}>
                           {statusDisplay}
                         </Badge>
@@ -405,7 +408,7 @@ function DashboardContent() {
                       )}
                     </div>
 
-                    <p className="text-gray-600">Collateral: Token #{loan.collateral_token_id} {policy ? `(${policy.policy_number})` : ''}</p>
+                    <p className="text-gray-600">Collateral: Policy {formatAddress(loan.collateral_address)} {policy ? `(${policy.policy_number})` : ''}</p>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                       <div>

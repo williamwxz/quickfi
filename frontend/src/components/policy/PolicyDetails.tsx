@@ -1,63 +1,121 @@
 'use client';
 
-// No state management needed in this component
+// Component for displaying policy details only
 import { usePolicyTokenDetails, useTokenURI, useTokenOwner } from '@/hooks/useContractHooks';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { formatUnits } from 'viem';
-import { useRouter } from 'next/navigation';
+import { formatAddress } from '@/utils/explorer';
 
-// Using a simple div as skeleton for now
-const Skeleton = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+// Create two skeleton components - one for divs and one for spans
+const DivSkeleton = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={`animate-pulse bg-gray-200 rounded ${className}`} {...props} />
 );
 
-interface PolicyDetailsProps {
-  tokenId: string;
+const SpanSkeleton = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span className={`animate-pulse bg-gray-200 rounded inline-block ${className}`} {...props} />
+);
+
+interface PolicyData {
+  address: string;
+  chain_id: number;
+  owner_address: string;
+  face_value: number;
+  expiry_date: string;
+  policy_number: string;
+  issuer: string;
+  policy_type: string;
+  status: string;
 }
 
-export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
-  const router = useRouter();
+interface PolicyDetailsProps {
+  policyAddress: string;
+  chainId?: string | null;
+}
 
-  // Use wagmi hooks to read contract data
+export default function PolicyDetails({ policyAddress, chainId }: PolicyDetailsProps) {
+  // State for Supabase data
+  const [policyData, setPolicyData] = useState<PolicyData | null>(null);
+  const [isLoadingSupabase, setIsLoadingSupabase] = useState<boolean>(false);
+  const [isErrorSupabase, setIsErrorSupabase] = useState<boolean>(false);
+
+  // Fetch policy data from Supabase if chainId is provided
+  useEffect(() => {
+    async function fetchPolicyData() {
+      if (!policyAddress) return;
+
+      setIsLoadingSupabase(true);
+      try {
+        let query = supabase
+          .from('policies')
+          .select('*')
+          .eq('address', policyAddress);
+
+        // Add chain_id filter if provided
+        if (chainId) {
+          query = query.eq('chain_id', chainId);
+        }
+
+        const { data, error } = await query.single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching policy from Supabase:', error);
+          setIsErrorSupabase(true);
+        } else if (data) {
+          setPolicyData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching policy data:', error);
+        setIsErrorSupabase(true);
+      } finally {
+        setIsLoadingSupabase(false);
+      }
+    }
+
+    fetchPolicyData();
+  }, [policyAddress, chainId]);
+
+  // Use wagmi hooks as fallback for blockchain data
   const {
     data: policyDetails,
     isLoading: isLoadingDetails,
     isError: isErrorDetails
-  } = usePolicyTokenDetails(tokenId);
+  } = usePolicyTokenDetails(policyAddress);
 
   const {
     data: tokenURI,
     isLoading: isLoadingURI,
     isError: isErrorURI
-  } = useTokenURI(tokenId);
+  } = useTokenURI(policyAddress);
 
   const {
     data: owner,
     isLoading: isLoadingOwner,
     isError: isErrorOwner
-  } = useTokenOwner(tokenId);
+  } = useTokenOwner(policyAddress);
 
-  // Function to handle "Use as Collateral" button click
-  const handleUseAsCollateral = () => {
-    router.push(`/app/loan?policyId=${tokenId}`);
-  };
+  // Format the policy value (using Supabase data if available)
+  const formattedValue = policyData
+    ? policyData.face_value.toLocaleString()
+    : policyDetails
+      ? formatUnits(BigInt(0), 6) // Use a placeholder value for now
+      : '0';
 
-  // Format the policy value (assuming 6 decimals for USDC)
-  const formattedValue = policyDetails
-    ? formatUnits(BigInt(0), 6) // Use a placeholder value for now
-    : '0';
-
-  // Format the expiry date
-  const expiryDate = policyDetails
-    ? new Date().toLocaleDateString() // Use current date as placeholder
-    : 'Unknown';
+  // Format the expiry date (using Supabase data if available)
+  const expiryDate = policyData
+    ? new Date(policyData.expiry_date).toLocaleDateString()
+    : policyDetails
+      ? new Date().toLocaleDateString() // Use current date as placeholder
+      : 'Unknown';
 
   // Check if any data is loading
-  const isLoading = isLoadingDetails || isLoadingURI || isLoadingOwner;
+  const isLoading = (isLoadingSupabase && !policyData) ||
+    (isLoadingDetails || isLoadingURI || isLoadingOwner);
 
   // Check if any errors occurred
-  const isError = isErrorDetails || isErrorURI || isErrorOwner;
+  const isError = isErrorSupabase &&
+    (isErrorDetails || isErrorURI || isErrorOwner);
 
   if (isError) {
     return (
@@ -76,44 +134,51 @@ export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle>
-          {isLoading ? <Skeleton className="h-8 w-3/4" /> : `Policy Token #${tokenId}`}
+          {isLoading ? <DivSkeleton className="h-8 w-3/4" /> : `Policy ${formatAddress(policyAddress)}`}
         </CardTitle>
         <CardDescription>
-          {isLoading ? <Skeleton className="h-4 w-1/2" /> : 'Insurance Policy Details'}
+          {isLoading ? <SpanSkeleton className="h-4 w-1/2" /> :
+            policyData ? `${policyData.issuer} - ${policyData.policy_type}` : 'Insurance Policy Details'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2">
           <div className="text-sm font-medium">Owner:</div>
           <div className="text-sm truncate">
-            {isLoadingOwner ? <Skeleton className="h-4 w-full" /> : owner ? String(owner) : 'Unknown'}
+            {isLoading ? <DivSkeleton className="h-4 w-full" /> :
+              policyData ? formatAddress(policyData.owner_address) :
+              owner ? formatAddress(String(owner)) : 'Unknown'}
           </div>
 
           <div className="text-sm font-medium">Value:</div>
           <div className="text-sm">
-            {isLoadingDetails ? <Skeleton className="h-4 w-1/2" /> : `${formattedValue} USDC`}
+            {isLoading ? <DivSkeleton className="h-4 w-1/2" /> : `$${formattedValue} USDC`}
           </div>
 
           <div className="text-sm font-medium">Expiry Date:</div>
           <div className="text-sm">
-            {isLoadingDetails ? <Skeleton className="h-4 w-1/2" /> : expiryDate}
+            {isLoading ? <DivSkeleton className="h-4 w-1/2" /> : expiryDate}
           </div>
 
-          <div className="text-sm font-medium">Token URI:</div>
-          <div className="text-sm truncate">
-            {isLoadingURI ? <Skeleton className="h-4 w-full" /> : tokenURI ? String(tokenURI) : 'No URI available'}
-          </div>
+          {policyData && (
+            <>
+              <div className="text-sm font-medium">Policy Number:</div>
+              <div className="text-sm">
+                {policyData.policy_number}
+              </div>
+            </>
+          )}
+
+          {!policyData && (
+            <>
+              <div className="text-sm font-medium">Token URI:</div>
+              <div className="text-sm truncate">
+                {isLoadingURI ? <DivSkeleton className="h-4 w-full" /> : tokenURI ? String(tokenURI) : 'No URI available'}
+              </div>
+            </>
+          )}
         </div>
       </CardContent>
-      <CardFooter className="flex justify-end space-x-2">
-        <Button variant="outline" disabled={isLoading}>View on Explorer</Button>
-        <Button
-          disabled={isLoading}
-          onClick={handleUseAsCollateral}
-        >
-          Use as Collateral
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

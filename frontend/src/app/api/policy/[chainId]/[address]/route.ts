@@ -3,15 +3,31 @@ import { getPolicyTokenDetails, getTokenURI, getOwnerOf } from '@/lib/contractUt
 import { supabase } from '@/lib/supabaseClient';
 
 export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ tokenId: string }> }
+  request: Request,
+  { params }: { params: Promise<{ chainId: string; address: string }> }
 ) {
   try {
-    const { tokenId } = await params;
-
-    if (!tokenId) {
+    const { chainId, address } = await params;
+    
+    if (!address) {
       return NextResponse.json(
-        { error: "Missing token ID" },
+        { error: "Missing policy address" },
+        { status: 400 }
+      );
+    }
+
+    if (!chainId) {
+      return NextResponse.json(
+        { error: "Missing chain ID" },
+        { status: 400 }
+      );
+    }
+
+    // Parse chainId to number
+    const chainIdNum = parseInt(chainId, 10);
+    if (isNaN(chainIdNum)) {
+      return NextResponse.json(
+        { error: "Invalid chain ID format" },
         { status: 400 }
       );
     }
@@ -20,7 +36,8 @@ export async function GET(
     const { data: policyData, error } = await supabase
       .from('policies')
       .select('*')
-      .eq('token_id', tokenId)
+      .eq('address', address)
+      .eq('chain_id', chainIdNum)
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is the "not found" error code
@@ -32,7 +49,8 @@ export async function GET(
     if (policyData) {
       return NextResponse.json({
         success: true,
-        tokenId,
+        chainId: chainIdNum,
+        address,
         policy: policyData,
         source: 'supabase'
       });
@@ -40,14 +58,15 @@ export async function GET(
 
     // Otherwise, try to get data from the blockchain
     try {
-      const policyDetails = await getPolicyTokenDetails(tokenId);
-      const owner = await getOwnerOf(tokenId);
-      const tokenURI = await getTokenURI(tokenId);
+      const policyDetails = await getPolicyTokenDetails(address);
+      const owner = await getOwnerOf(address);
+      const tokenURI = await getTokenURI(address);
 
       // Format the response
       return NextResponse.json({
         success: true,
-        tokenId,
+        chainId: chainIdNum,
+        address,
         owner,
         tokenURI,
         policyDetails,
@@ -60,7 +79,8 @@ export async function GET(
       return NextResponse.json({
         success: false,
         error: 'Policy not found in database or blockchain',
-        tokenId
+        chainId: chainIdNum,
+        address
       }, { status: 404 });
     }
   } catch (error) {

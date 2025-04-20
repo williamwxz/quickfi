@@ -13,6 +13,9 @@ export const hardhatLocal = {
     public: { http: ['http://127.0.0.1:8545'] },
     default: { http: ['http://127.0.0.1:8545'] },
   },
+  blockExplorers: {
+    default: { name: 'Local Explorer', url: '#' },
+  },
 } as const satisfies Chain;
 
 export const pharosDevnet = {
@@ -26,5 +29,8 @@ export const pharosDevnet = {
   rpcUrls: {
     public: { http: ['https://devnet.dplabs-internal.com'] },
     default: { http: ['https://devnet.dplabs-internal.com'] },
+  },
+  blockExplorers: {
+    default: { name: 'Pharos Explorer', url: 'https://pharosscan.xyz/' },
   },
 } as const satisfies Chain;

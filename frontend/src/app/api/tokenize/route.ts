@@ -28,11 +28,19 @@ export async function POST(request: Request) {
     // Convert expiry date to timestamp
     const expiryTimestamp = Math.floor(new Date(expiryDate).getTime() / 1000);
 
+    // Generate a policy address as an Ethereum address
+    // In a real implementation, this would be the address of the token contract or NFT
+    // For now, we'll generate a deterministic address based on the policy details
+    const policyHash = `${policyNumber}${issuer}${expiryTimestamp}`;
+    const hashBase = policyHash.split('').map(c => c.charCodeAt(0).toString(16)).join('');
+    const policyAddress = `0x${hashBase.padEnd(40, '0')}`.substring(0, 42);
+
     // Return a simple response
     return NextResponse.json({
       success: true,
       message: "Policy tokenization would be processed in production",
       contractAddress: TOKEN_CONTRACT_ADDRESS,
+      address: policyAddress, // Policy token address
       policyDetails: {
         policyNumber,
         faceValue: valuationAmount.toString(),
