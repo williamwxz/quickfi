@@ -10,8 +10,16 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_A
 
 // For server-side operations that need admin privileges
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
   : null;
+
+// Export admin client for use in server-side operations
+export { supabaseAdmin };
 
 // Create client
 export const supabase = createClient(supabaseUrl, supabaseKey);
@@ -111,7 +119,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
 
     const expiryDate = new Date(policyData.expiryDate).toISOString();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('policies')
       .insert([
         {
@@ -128,8 +136,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
           status: 'pending',
           created_at: new Date().toISOString()
         }
-      ])
-      .select();
+      ]);
 
     if (error) {
       console.error("Error storing policy:", error.message);

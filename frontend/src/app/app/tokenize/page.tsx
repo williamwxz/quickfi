@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useAccount, useChainId, useWaitForTransactionReceipt } from 'wagmi';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useAccount, useChainId } from 'wagmi';
 import { useMintPolicyToken } from '@/hooks/useContractHooks';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -35,15 +35,33 @@ function TokenizeContent() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const storePolicyData = async () => {
-      // Get the tokenized policy address from the transaction receipt
-      if (!txData?.logs?.[0]?.address) {
-        throw new Error('Failed to get tokenized policy address');
-      }
-      const tokenAddress = txData.logs[0].address;
-      console.log('Token address:', tokenAddress);
+  const storePolicyData = useCallback(async () => {
+    // Get the tokenized policy address from the transaction receipt
+    if (!txData?.logs?.[0]?.address) {
+      throw new Error('Failed to get tokenized policy address');
+    }
+    const tokenAddress = txData.logs[0].address;
+    console.log('Token address:', tokenAddress);
 
-      console.log('Calling /api/tokenize with data:', {
+    console.log('Calling /api/tokenize with data:', {
+      chainId,
+      address: tokenAddress,
+      policyNumber: formData.policyNumber,
+      issuer: formData.issuer,
+      policyType: 'Life',
+      faceValue: formData.faceValue,
+      expiryDate: formData.expiryDate,
+      documentHash: formData.documentHash,
+      userAddress: address,
+      txHash: hash,
+    });
+
+    const response = await fetch('/api/tokenize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         chainId,
         address: tokenAddress,
         policyNumber: formData.policyNumber,
@@ -54,35 +72,16 @@ function TokenizeContent() {
         documentHash: formData.documentHash,
         userAddress: address,
         txHash: hash,
-      });
+      }),
+    });
 
-      const response = await fetch('/api/tokenize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chainId,
-          address: tokenAddress,
-          policyNumber: formData.policyNumber,
-          issuer: formData.issuer,
-          policyType: 'Life',
-          faceValue: formData.faceValue,
-          expiryDate: formData.expiryDate,
-          documentHash: formData.documentHash,
-          userAddress: address,
-          txHash: hash,
-        }),
-      });
-
-      console.log('API response status:', response.status);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to store policy data');
-      }
-      toast.success('Policy data stored successfully');
+    console.log('API response status:', response.status);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to store policy data');
     }
-  
+    toast.success('Policy data stored successfully');
+  }, [address, chainId, formData, hash, txData]);
 
   // Watch for transaction success and show success message
   useEffect(() => {
@@ -94,7 +93,7 @@ function TokenizeContent() {
         </div>
       );
     }
-  }, [isSuccess, hash, chainId]);
+  }, [isSuccess, hash, chainId, storePolicyData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
