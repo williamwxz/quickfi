@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useMintPolicyToken } from '@/hooks/useContractHooks';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -19,7 +19,29 @@ export const dynamic = 'force-dynamic';
 function TokenizeContent() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { mintPolicyToken, isLoading: isMinting, hash } = useMintPolicyToken(chainId);
+  const { mintPolicyToken, isLoading: isMinting, hash, isSuccess } = useMintPolicyToken(chainId);
+
+  // Watch for hash changes and show a success message when it becomes available
+  useEffect(() => {
+    if (hash) {
+      toast.success(
+        <div>
+          Transaction submitted! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+        </div>
+      );
+    }
+  }, [hash, chainId]);
+
+  // Watch for transaction success and show a success message
+  useEffect(() => {
+    if (isSuccess && hash) {
+      toast.success(
+        <div>
+          Policy tokenized successfully! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+        </div>
+      );
+    }
+  }, [isSuccess, hash, chainId]);
 
   const [formData, setFormData] = useState({
     policyNumber: '',
@@ -92,7 +114,7 @@ function TokenizeContent() {
       const expiryTimestamp = BigInt(Math.floor(new Date(formData.expiryDate).getTime() / 1000));
 
       // Convert document hash to bytes32 if provided
-      const documentHashBytes32 = formData.documentHash 
+      const documentHashBytes32 = formData.documentHash
         ? `0x${formData.documentHash.padEnd(64, '0')}` as `0x${string}`
         : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
@@ -113,11 +135,13 @@ function TokenizeContent() {
       ];
 
       // Mint the policy token using the user's wallet
-      const txHash = await mintPolicyToken(mintArgs);
-      
-      if (!txHash) {
-        throw new Error('Failed to get transaction hash');
-      }
+      await mintPolicyToken(mintArgs);
+
+      // The hash will be set by the hook after the transaction is submitted
+      // We'll use the hash from the hook in the useEffect below
+
+      // If we have a hash at this point, use it
+      const currentHash = hash;
 
       // Store the policy data in the database
       const response = await fetch('/api/tokenize', {
@@ -135,7 +159,7 @@ function TokenizeContent() {
           faceValue: formData.faceValue,
           expiryDate: formData.expiryDate,
           documentHash: formData.documentHash,
-          txHash,
+          txHash: currentHash,
         }),
       });
 
@@ -144,7 +168,17 @@ function TokenizeContent() {
         throw new Error(error.error || 'Failed to store policy data');
       }
 
-      toast.success('Policy tokenized and stored successfully!');
+      // If we have a hash, show a success message with a link to the transaction
+      if (currentHash) {
+        toast.success(
+          <div>
+            Policy tokenized! <a href={getTransactionUrl(currentHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+          </div>
+        );
+      } else {
+        // Otherwise, just show a simple success message
+        toast.success('Policy tokenization initiated. Please wait for transaction confirmation.');
+      }
     } catch (error) {
       console.error('Error tokenizing policy:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to tokenize policy');
@@ -323,9 +357,9 @@ function TokenizeContent() {
               </p>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full" 
+            <Button
+              type="submit"
+              className="w-full"
               disabled={isUploading || isMinting || !isConnected}
             >
               {isUploading || isMinting ? 'Processing...' : 'Tokenize Policy'}

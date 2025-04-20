@@ -67,25 +67,34 @@ export function useMintPolicyToken(chainId?: number) {
   const { addresses } = useContractAddresses(chainId);
   const { writeContract, isPending, data: hash } = useWriteContract();
 
+  const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
+    hash,
+  });
+
   const mintPolicyToken = async (args: [`0x${string}`, string, `0x${string}`, bigint, bigint, `0x${string}`]) => {
     if (!addresses?.TokenizedPolicy) {
       throw new Error('TokenizedPolicy address not available');
     }
 
-    writeContract({
-      address: addresses.TokenizedPolicy as `0x${string}`,
-      abi: TokenizedPolicyABI,
-      functionName: 'mintPolicy',
-      args,
-    });
-
-    return hash;
+    try {
+      return writeContract({
+        address: addresses.TokenizedPolicy as `0x${string}`,
+        abi: TokenizedPolicyABI,
+        functionName: 'mintPolicy',
+        args,
+      });
+    } catch (error) {
+      console.error('Error minting policy token:', error);
+      throw error;
+    }
   };
 
   return {
     mintPolicyToken,
-    isLoading: isPending,
+    isLoading: isPending || isTxLoading,
+    isSuccess: isTxSuccess,
     hash,
+    txData,
   };
 }
 
