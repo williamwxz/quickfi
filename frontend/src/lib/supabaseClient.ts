@@ -119,7 +119,47 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
 
     const expiryDate = new Date(policyData.expiryDate).toISOString();
 
-    const { error } = await supabase
+    // First check if policy already exists
+    const { data: existingPolicy } = await supabase
+      .from('policies')
+      .select('*')
+      .eq('chain_id', policyData.chainId)
+      .eq('address', policyData.address)
+      .single();
+
+    if (existingPolicy) {
+      // If policy exists, update it instead of inserting
+      const { error: updateError } = await supabase
+        .from('policies')
+        .update({
+          policy_number: policyData.policyNumber,
+          issuer: policyData.issuer,
+          policy_type: policyData.policyType,
+          face_value: policyData.faceValue,
+          expiry_date: expiryDate,
+          document_hash: policyData.documentHash || null,
+          owner_address: policyData.ownerAddress,
+          tx_hash: policyData.txHash || null,
+          status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('chain_id', policyData.chainId)
+        .eq('address', policyData.address);
+
+      if (updateError) {
+        console.error("Error updating policy:", updateError.message);
+        return { success: false, error: updateError.message };
+      }
+
+      return {
+        success: true,
+        message: "Policy data updated successfully",
+        txHash: policyData.txHash
+      };
+    }
+
+    // If policy doesn't exist, insert new record
+    const { error: insertError } = await supabase
       .from('policies')
       .insert([
         {
@@ -133,14 +173,14 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
           document_hash: policyData.documentHash || null,
           owner_address: policyData.ownerAddress,
           tx_hash: policyData.txHash || null,
-          status: 'pending',
+          status: 'active',
           created_at: new Date().toISOString()
         }
       ]);
 
-    if (error) {
-      console.error("Error storing policy:", error.message);
-      return { success: false, error: error.message };
+    if (insertError) {
+      console.error("Error storing policy:", insertError.message);
+      return { success: false, error: insertError.message };
     }
 
     return {

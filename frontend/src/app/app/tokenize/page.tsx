@@ -33,35 +33,19 @@ function TokenizeContent() {
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isStoring, setIsStoring] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const storePolicyData = useCallback(async () => {
-    // Get the tokenized policy address from the transaction receipt
-    if (!txData?.logs?.[0]?.address) {
-      throw new Error('Failed to get tokenized policy address');
-    }
-    const tokenAddress = txData.logs[0].address;
-    console.log('Token address:', tokenAddress);
+    try {
+      // Get the tokenized policy address from the transaction receipt
+      if (!txData?.logs?.[0]?.address) {
+        throw new Error('Failed to get tokenized policy address');
+      }
+      const tokenAddress = txData.logs[0].address;
+      console.log('Token address:', tokenAddress);
 
-    console.log('Calling /api/tokenize with data:', {
-      chainId,
-      address: tokenAddress,
-      policyNumber: formData.policyNumber,
-      issuer: formData.issuer,
-      policyType: 'Life',
-      faceValue: formData.faceValue,
-      expiryDate: formData.expiryDate,
-      documentHash: formData.documentHash,
-      userAddress: address,
-      txHash: hash,
-    });
-
-    const response = await fetch('/api/tokenize', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      console.log('Calling /api/tokenize with data:', {
         chainId,
         address: tokenAddress,
         policyNumber: formData.policyNumber,
@@ -72,15 +56,41 @@ function TokenizeContent() {
         documentHash: formData.documentHash,
         userAddress: address,
         txHash: hash,
-      }),
-    });
+      });
 
-    console.log('API response status:', response.status);
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to store policy data');
+      const response = await fetch('/api/tokenize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chainId,
+          address: tokenAddress,
+          policyNumber: formData.policyNumber,
+          issuer: formData.issuer,
+          policyType: 'Life',
+          faceValue: formData.faceValue,
+          expiryDate: formData.expiryDate,
+          documentHash: formData.documentHash,
+          userAddress: address,
+          txHash: hash,
+        }),
+      });
+
+      console.log('API response status:', response.status);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to store policy data');
+      }
+      
+      setIsStoring(true);
+      toast.success(data.message || 'Policy data stored successfully');
+    } catch (error) {
+      console.error('Error storing policy:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to store policy data');
+      setIsStoring(false);
     }
-    toast.success('Policy data stored successfully');
   }, [address, chainId, formData, hash, txData]);
 
   // Watch for transaction success and show success message
@@ -200,7 +210,7 @@ function TokenizeContent() {
   };
 
   // Show success message when we have a transaction hash
-  if (isSuccess && !isMinting && hash) {
+  if (isSuccess && isStoring && hash) {
     toast.dismiss();
     return (
       <div className="container mx-auto py-8 max-w-3xl">
