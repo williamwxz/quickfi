@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { toast } from 'react-toastify';
-import { Loader2, Upload, FileText, CheckCircle } from 'lucide-react';
+import { Loader2, Upload, FileText, CheckCircle, Link } from 'lucide-react';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 import { parseUnits } from 'ethers';
+import { getTransactionUrl } from '@/utils/explorer';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -112,7 +113,38 @@ function TokenizeContent() {
       ];
 
       // Mint the policy token using the user's wallet
-      await mintPolicyToken(mintArgs);
+      const txHash = await mintPolicyToken(mintArgs);
+      
+      if (!txHash) {
+        throw new Error('Failed to get transaction hash');
+      }
+
+      // Store the policy data in the database
+      const response = await fetch('/api/tokenize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chainId,
+          address: address,
+          ownerAddress: address,
+          policyNumber: formData.policyNumber,
+          issuer: formData.issuer,
+          policyType: 'Life', // Fix: Default to Life insurance for now
+          faceValue: formData.faceValue,
+          expiryDate: formData.expiryDate,
+          documentHash: formData.documentHash,
+          txHash,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to store policy data');
+      }
+
+      toast.success('Policy tokenized and stored successfully!');
     } catch (error) {
       console.error('Error tokenizing policy:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to tokenize policy');
@@ -130,6 +162,10 @@ function TokenizeContent() {
             <CardTitle className="text-green-500">Policy Tokenized!</CardTitle>
             <CardDescription>
               Your insurance policy has been successfully tokenized.
+              <br />
+              <Link href={`${getTransactionUrl(hash, chainId)}`}>
+                View on Explorer
+              </Link>
             </CardDescription>
           </CardHeader>
           <CardContent>

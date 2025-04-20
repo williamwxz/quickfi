@@ -4,6 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-key';
 
+// For server-side operations that need admin privileges
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
 // Create client only if URL is provided, otherwise use a mock
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -75,4 +80,67 @@ export async function getContractAddresses(chainId: number = 1337) {
   }
 
   return getContractAddressesFromEnv();
+}
+
+/**
+ * Interface for policy data
+ */
+export interface PolicyData {
+  chainId: number;
+  policyNumber: string;
+  issuer: string;
+  policyType: string;
+  faceValue: string;
+  expiryDate: string;
+  documentHash?: string;
+  ownerAddress: string;
+  txHash?: string;
+}
+
+/**
+ * Store a tokenized policy in Supabase
+ * @param policyData The policy data to store
+ * @returns An object with success status and message or error
+ */
+export async function storeTokenizedPolicy(policyData: PolicyData) {
+  try {
+    // Use admin client if available, otherwise use regular client
+    const client = supabaseAdmin || supabase;
+
+    // Convert expiry date to ISO string
+    const expiryDate = new Date(policyData.expiryDate).toISOString();
+
+    // Insert the policy data
+    const { error } = await client
+      .from('tokenized_policies')
+      .insert([
+        {
+          chain_id: policyData.chainId,
+          policy_number: policyData.policyNumber,
+          issuer: policyData.issuer,
+          policy_type: policyData.policyType,
+          face_value: policyData.faceValue,
+          expiry_date: expiryDate,
+          document_hash: policyData.documentHash || null,
+          owner_address: policyData.ownerAddress,
+          tx_hash: policyData.txHash || null,
+          status: policyData.txHash ? 'pending' : 'draft', // Status based on whether txHash is provided
+          created_at: new Date().toISOString()
+        }
+      ]);
+
+    if (error) {
+      console.error("Error storing policy data in Supabase:", error);
+      return { success: false, error: "Failed to store policy data" };
+    }
+
+    return {
+      success: true,
+      message: "Policy data stored successfully",
+      txHash: policyData.txHash
+    };
+  } catch (error) {
+    console.error("Error storing policy data:", error);
+    return { success: false, error: "Failed to store policy data" };
+  }
 }

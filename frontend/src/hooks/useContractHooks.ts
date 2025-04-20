@@ -71,13 +71,15 @@ export function useMintPolicyToken(chainId?: number) {
     if (!addresses?.TokenizedPolicy) {
       throw new Error('TokenizedPolicy address not available');
     }
-    
+
     writeContract({
       address: addresses.TokenizedPolicy as `0x${string}`,
       abi: TokenizedPolicyABI,
       functionName: 'mintPolicy',
       args,
     });
+
+    return hash;
   };
 
   return {
@@ -265,7 +267,7 @@ export function useAssessRisk(
       ? [borrower as `0x${string}`, collateralToken as `0x${string}`, collateralTokenId, requestedAmount, duration]
       : undefined,
     query: {
-      enabled: !!borrower && !!collateralToken && collateralTokenId !== undefined && 
+      enabled: !!borrower && !!collateralToken && collateralTokenId !== undefined &&
              requestedAmount !== undefined && duration !== undefined && !!addresses.RiskEngine,
     },
   });
