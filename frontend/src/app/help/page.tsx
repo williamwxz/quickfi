@@ -19,7 +19,7 @@ export default function HelpPage() {
   const faqItems: FaqItem[] = [
     {
       question: "What is QuickFi?",
-      answer: "QuickFi is a decentralized micro-lending platform built on the Pharos Network that allows users to tokenize their insurance policies as ERC721 NFTs and use them as collateral to borrow USDC. It offers a fast, secure way to unlock capital from your insurance assets without selling them."
+      answer: "QuickFi is a decentralized micro-lending platform built on the Pharos Network that allows users to tokenize their insurance policies as ERC721 NFTs and use them as collateral to borrow stable coins. It offers a fast, secure way to unlock capital from your insurance assets without selling them."
     },
     {
       question: "How do I tokenize my insurance policy?",

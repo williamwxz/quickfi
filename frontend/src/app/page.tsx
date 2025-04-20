@@ -54,8 +54,8 @@ const steps = [
   },
   {
     icon: <CreditCard className="h-10 w-10" />,
-    title: "Borrow USDC",
-    description: "Use your NFT as collateral to instantly borrow USDC at competitive rates."
+    title: "Borrow Stable Coins",
+    description: "Use your NFT as collateral to instantly borrow stable coins at competitive rates."
   },
   {
     icon: <Wallet className="h-10 w-10" />,
@@ -108,7 +108,7 @@ export default function Home() {
                   <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Unlock Capital.</span>
                 </h1>
                 <p className="text-lg md:text-xl text-gray-600 max-w-lg">
-                  Convert insurance policies into ERC721 NFTs and use them as collateral to borrow USDC on our decentralized lending platform.
+                  Convert insurance policies into ERC721 NFTs and use them as collateral to borrow stable coins on our decentralized lending platform.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <Link href="/app">
