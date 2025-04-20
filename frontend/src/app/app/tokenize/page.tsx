@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useMintPolicyToken } from '@/hooks/useContractHooks';
+import { useContractAddresses } from '@/hooks/useContractAddresses';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -21,7 +22,8 @@ export const dynamic = 'force-dynamic';
 function TokenizeContent() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { mintPolicyToken, isSuccess, isLoading: isMinting, hash, txData } = useMintPolicyToken(chainId);
+  const { mintPolicyToken, isSuccess, isLoading: isMinting, hash, txData, tokenId } = useMintPolicyToken(chainId);
+  const { addresses } = useContractAddresses(chainId);
 
   const [formData, setFormData] = useState({
     policyNumber: '',
@@ -42,21 +44,16 @@ function TokenizeContent() {
       if (!txData?.logs?.[0]?.address) {
         throw new Error('Failed to get tokenized policy address');
       }
-      const tokenAddress = txData.logs[0].address;
-      console.log('Token address:', tokenAddress);
+      if (!tokenId) {
+        throw new Error("Failed to extract token ID from transaction logs");
+      }
 
-      console.log('Calling /api/tokenize with data:', {
-        chainId,
-        address: tokenAddress,
-        policyNumber: formData.policyNumber,
-        issuer: formData.issuer,
-        policyType: 'Life',
-        faceValue: formData.faceValue,
-        expiryDate: formData.expiryDate,
-        documentHash: formData.documentHash,
-        userAddress: address,
-        txHash: hash,
-      });
+      // Use the TokenizedPolicy contract address from the hook
+      const tokenAddress = addresses?.TokenizedPolicy;
+
+      if (!tokenAddress) {
+        throw new Error('TokenizedPolicy contract address not available');
+      }
 
       const response = await fetch('/api/tokenize', {
         method: 'POST',
@@ -74,16 +71,16 @@ function TokenizeContent() {
           documentHash: formData.documentHash,
           userAddress: address,
           txHash: hash,
+          tokenId: tokenId
         }),
       });
 
-      console.log('API response status:', response.status);
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to store policy data');
       }
-      
+
       setIsStoring(true);
       toast.success(data.message || 'Policy data stored successfully');
     } catch (error) {
@@ -91,7 +88,7 @@ function TokenizeContent() {
       toast.error(error instanceof Error ? error.message : 'Failed to store policy data');
       setIsStoring(false);
     }
-  }, [address, chainId, formData, hash, txData]);
+  }, [address, chainId, formData, hash, txData, tokenId, addresses]);
 
   // Watch for transaction success and show success message
   useEffect(() => {
@@ -177,7 +174,7 @@ function TokenizeContent() {
       const expiryTimestamp = BigInt(Math.floor(new Date(formData.expiryDate).getTime() / 1000));
 
       // Convert document hash to bytes32 if provided
-      const documentHashBytes32 = formData.documentHash 
+      const documentHashBytes32 = formData.documentHash
         ? `0x${formData.documentHash.padEnd(64, '0')}` as `0x${string}`
         : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
@@ -197,7 +194,7 @@ function TokenizeContent() {
       ];
 
       console.log('Minting policy token with args:', mintArgs);
-      
+
       // Mint the policy token using the user's wallet
       await mintPolicyToken(mintArgs);
       toast.loading('Pending chain confirmation...');
@@ -226,9 +223,16 @@ function TokenizeContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm">
-              You can now use this tokenized policy as collateral for loans.
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm">
+                You can now use this tokenized policy as collateral for loans.
+              </p>
+              {tokenId && (
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm font-medium">Policy Token ID: <span className="font-bold">{tokenId}</span></p>
+                </div>
+              )}
+            </div>
           </CardContent>
           <CardFooter className="flex justify-end">
             <Button onClick={() => window.location.href = '/app/dashboard'}>

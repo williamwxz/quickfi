@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import PolicyDetails from '@/components/policy/PolicyDetails';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
@@ -13,16 +13,14 @@ export const dynamic = 'force-dynamic';
 
 export default function PolicyPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const policyAddress = params.tokenId as string; // URL param is still tokenId but it's actually the policy address
-  const chainId = searchParams.get('chainId');
+  const tokenId = params.tokenId as string;
 
   // We don't need to get the owner here since we're using the contract address from env
 
   // Function to handle "Use as Collateral" button click
   const handleUseAsCollateral = () => {
-    router.push(`/app/loan?policyAddress=${policyAddress}${chainId ? `&chainId=${chainId}` : ''}`);
+    router.push(`/app/loan?tokenId=${tokenId}`);
   };
 
   // Function to view token on explorer
@@ -30,7 +28,7 @@ export default function PolicyPage() {
     // Use the contract address from the environment variable
     const contractAddress = process.env.NEXT_PUBLIC_POLICY_CONTRACT_ADDRESS;
     if (contractAddress) {
-      const url = getExplorerUrl(contractAddress, 50002, true);
+      const url = `${getExplorerUrl(contractAddress, 50002, true)}/token/${tokenId}`;
       window.open(url, '_blank');
     }
   };
@@ -48,7 +46,9 @@ export default function PolicyPage() {
 
       <h1 className="text-3xl font-bold mb-6">Policy Details</h1>
 
-      <PolicyDetails policyAddress={policyAddress} chainId={chainId} />
+      <PolicyDetails
+        tokenId={Number(tokenId)}
+      />
 
       <div className="mt-8 flex justify-end gap-4">
         <Button

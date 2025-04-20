@@ -19,11 +19,12 @@ export async function POST(request: Request) {
       userAddress,
       chainId = 1337,
       txHash,
-      policyType = 'Life'
+      policyType = 'Life',
+      tokenId
     } = body;
 
     // Validate required fields
-    if (!policyNumber || !faceValue || !issuer || !expiryDate || !userAddress) {
+    if (!policyNumber || !faceValue || !issuer || !expiryDate || !userAddress || !tokenId) {
       return NextResponse.json(
         { error: "Missing required policy information" },
         { status: 400 }
@@ -37,10 +38,17 @@ export async function POST(request: Request) {
       ? `0x${documentHash.padEnd(64, '0')}` as `0x${string}`
       : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
+    // Validate token ID
+    if (!tokenId) {
+      console.error('No token ID provided in the request');
+      return NextResponse.json({ error: 'Token ID is required' }, { status: 400 });
+    }
+
     // Store the policy data in Supabase
     const policyData: PolicyData = {
       chainId,
       address,
+      tokenId,
       policyNumber,
       issuer,
       policyType,
@@ -67,6 +75,7 @@ export async function POST(request: Request) {
       message: result.message,
       chainId,
       txHash: result.txHash || null,
+      tokenId,
       mintArgs: [
         userAddress as `0x${string}`,
         policyNumber,
@@ -80,7 +89,8 @@ export async function POST(request: Request) {
         faceValue: valuationAmount.toString(),
         issuer,
         expiryDate: expiryTimestamp.toString(),
-        documentHash: documentHash || "No document hash provided"
+        documentHash: documentHash || "No document hash provided",
+        tokenId
       }
     };
 

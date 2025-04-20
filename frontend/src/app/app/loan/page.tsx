@@ -12,13 +12,13 @@ import * as Select from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { useCreateLoan } from '@/hooks/useContractHooks';
 import { toast } from 'react-toastify';
 import { parseUnits } from 'viem';
 import { LTV_PARAMS, SUPPORTED_STABLECOINS, DEFAULT_STABLECOIN } from '@/config/loanParams';
 import { getTokenConfig } from '@/config/tokens';
-import { formatAddress, getExplorerUrl, getTransactionUrl } from '@/utils/explorer';
+import { getExplorerUrl, getTransactionUrl } from '@/utils/explorer';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -28,6 +28,7 @@ type Policy = {
   id: number;
   chain_id: number;
   address: string; // On-chain policy token address
+  token_id?: number; // Added token_id field
   policy_number: string;
   face_value: number;
   expiry_date: string;
@@ -40,6 +41,7 @@ type Policy = {
 // Client component that uses useSearchParams
 function LoanClientContent() {
   const searchParams = useSearchParams();
+  const chainId = useChainId();
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
   const [selectedPolicyChainId, setSelectedPolicyChainId] = useState<number | null>(null);
   const [loanAmount, setLoanAmount] = useState<number>(0);
@@ -77,31 +79,20 @@ function LoanClientContent() {
     fetchPolicies();
   }, []);
 
-  // Check for policyAddress and chainId in URL query parameters
+  // Check for tokenId in URL query parameters
   useEffect(() => {
     if (!searchParams) return;
 
-    const policyAddress = searchParams.get('policyAddress');
-    const chainId = searchParams.get('chainId');
+    const tokenId = searchParams.get('tokenId');
 
-    if (policyAddress && policies.length > 0) {
-      // Check if the policy exists in our data
-      const policyExists = chainId
-        ? policies.some(policy => policy.address === policyAddress && policy.chain_id === Number(chainId))
-        : policies.some(policy => policy.address === policyAddress);
+    if (tokenId && policies.length > 0) {
+      // Find the policy with the matching token ID
+      const policy = policies.find(p => p.token_id === Number(tokenId));
 
-      if (policyExists) {
-        setSelectedPolicy(policyAddress);
-
-        // Set initial loan amount to 50% of the policy value
-        const policy = chainId
-          ? policies.find(p => p.address === policyAddress && p.chain_id === Number(chainId))
-          : policies.find(p => p.address === policyAddress);
-
-        if (policy) {
-          setLoanAmount(policy.face_value * 0.5);
-          setSelectedPolicyChainId(policy.chain_id);
-        }
+      if (policy) {
+        setSelectedPolicy(policy.address);
+        setLoanAmount(policy.face_value * 0.5);
+        setSelectedPolicyChainId(policy.chain_id);
       }
     }
   }, [searchParams, policies]);
@@ -129,7 +120,6 @@ function LoanClientContent() {
   dueDate.setDate(dueDate.getDate() + loanTerm);
 
   const { address } = useAccount();
-  const chainId = 11155111; // Sepolia chain ID
   const { createLoan, isLoading: isCreatingLoan, data: loanTxHash, isSuccess: isLoanCreated } = useCreateLoan();
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -146,7 +136,7 @@ function LoanClientContent() {
         window.location.href = '/app/dashboard';
       }, 3000);
     }
-  }, [isLoanCreated, loanTxHash]);
+  }, [isLoanCreated, loanTxHash, chainId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,11 +180,14 @@ function LoanClientContent() {
       // Call the createLoan function from our hook
       await createLoan([
         policy.address as `0x${string}`, // collateralToken
-        '0x1' as `0x${string}`, // collateralTokenId - assuming token ID is 1 for simplicity
+        BigInt(policy.token_id || 1), // collateralTokenId
         loanAmountBigInt, // principal
         loanTermSeconds, // duration
         stablecoinAddress as `0x${string}` // stablecoin
-      ]);
+      ] as [`0x${string}`, bigint, bigint, bigint, `0x${string}`]);
+
+      // Generate a loan ID based on the transaction hash
+      const loanId = loanTxHash ? parseInt(loanTxHash.slice(-8), 16) % 10000 : Math.floor(Math.random() * 10000) + 1;
 
       // Store loan data in Supabase for UI purposes
       // This will be updated once the transaction is confirmed
@@ -205,7 +198,8 @@ function LoanClientContent() {
             chain_id: policy.chain_id,
             borrower_address: address,
             collateral_address: policy.address,
-            collateral_token_id: 1, // Assuming token ID is 1 for simplicity
+            collateral_token_id: policy.token_id || 1, // Use the token_id from the policy or default to 1
+            loan_id: loanId, // Add the loan_id
             loan_amount: loanAmount,
             interest_rate: interestRate,
             term_days: loanTerm,
@@ -283,7 +277,7 @@ function LoanClientContent() {
                               <RadioGroupItem value={policy.address} id={policy.address} />
                               <Label htmlFor={policy.address} className="flex flex-1 justify-between cursor-pointer">
                                 <div>
-                                  <div className="font-medium">Policy {formatAddress(policy.address)}</div>
+                                  <div className="font-medium">Policy #{policy.token_id || 'N/A'}</div>
                                   <div className="text-sm text-gray-500">Policy: {policy.policy_number}</div>
                                   <div className="text-sm text-gray-500">Issuer: {policy.issuer}</div>
                                 </div>
@@ -433,7 +427,7 @@ function LoanClientContent() {
                       rel="noopener noreferrer"
                       className="font-medium text-blue-600 hover:underline"
                     >
-                      {formatAddress(selectedPolicy)}
+                      Policy #{policies.find(p => p.address === selectedPolicy)?.token_id || 'N/A'}
                     </a>
                   ) : (
                     <span className="font-medium">-</span>

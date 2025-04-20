@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { formatUnits } from 'viem';
 import { formatAddress } from '@/utils/explorer';
+import { useChainId } from 'wagmi';
 
 // Create two skeleton components - one for divs and one for spans
 const DivSkeleton = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -27,35 +28,32 @@ interface PolicyData {
   issuer: string;
   policy_type: string;
   status: string;
+  token_id?: number; // Added token_id field
 }
 
 interface PolicyDetailsProps {
-  policyAddress: string;
-  chainId?: string | null;
+  tokenId: number;
 }
 
-export default function PolicyDetails({ policyAddress, chainId }: PolicyDetailsProps) {
+export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
+  // Convert tokenId to number if it's a string
+  const chainId = useChainId();
+  const tokenIdNumber = typeof tokenId === 'string' ? Number(tokenId) : tokenId;
   // State for Supabase data
   const [policyData, setPolicyData] = useState<PolicyData | null>(null);
   const [isLoadingSupabase, setIsLoadingSupabase] = useState<boolean>(false);
   const [isErrorSupabase, setIsErrorSupabase] = useState<boolean>(false);
 
-  // Fetch policy data from Supabase if chainId is provided
+  // Fetch policy data from Supabase
   useEffect(() => {
     async function fetchPolicyData() {
-      if (!policyAddress) return;
-
       setIsLoadingSupabase(true);
       try {
-        let query = supabase
+        const query = supabase
           .from('policies')
           .select('*')
-          .eq('address', policyAddress);
-
-        // Add chain_id filter if provided
-        if (chainId) {
-          query = query.eq('chain_id', chainId);
-        }
+          .eq('token_id', tokenIdNumber)
+          .eq('chain_id', chainId);
 
         const { data, error } = await query.single();
 
@@ -74,26 +72,26 @@ export default function PolicyDetails({ policyAddress, chainId }: PolicyDetailsP
     }
 
     fetchPolicyData();
-  }, [policyAddress, chainId]);
+  }, [tokenIdNumber, chainId]);
 
   // Use wagmi hooks as fallback for blockchain data
   const {
     data: policyDetails,
     isLoading: isLoadingDetails,
     isError: isErrorDetails
-  } = usePolicyTokenDetails(policyAddress);
+  } = usePolicyTokenDetails(tokenIdNumber);
 
   const {
     data: tokenURI,
     isLoading: isLoadingURI,
     isError: isErrorURI
-  } = useTokenURI(policyAddress);
+  } = useTokenURI(tokenIdNumber);
 
   const {
     data: owner,
     isLoading: isLoadingOwner,
     isError: isErrorOwner
-  } = useTokenOwner(policyAddress);
+  } = useTokenOwner(tokenIdNumber);
 
   // Format the policy value (using Supabase data if available)
   const formattedValue = policyData
@@ -134,7 +132,7 @@ export default function PolicyDetails({ policyAddress, chainId }: PolicyDetailsP
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle>
-          {isLoading ? <DivSkeleton className="h-8 w-3/4" /> : `Policy ${formatAddress(policyAddress)}`}
+          {isLoading ? <DivSkeleton className="h-8 w-3/4" /> : `Policy #${tokenIdNumber}`}
         </CardTitle>
         <CardDescription>
           {isLoading ? <SpanSkeleton className="h-4 w-1/2" /> :

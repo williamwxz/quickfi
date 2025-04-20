@@ -11,15 +11,19 @@ import {
 import { useContractAddresses } from './useContractAddresses';
 
 // Insurance Policy Token Hooks
-export function usePolicyTokenDetails(policyAddress: string | undefined) {
+export function usePolicyTokenDetails(tokenId: string | number | undefined) {
   const { addresses } = useContractAddresses();
+
+  // Convert to BigInt if it's defined
+  const tokenIdBigInt = tokenId !== undefined ? BigInt(tokenId) : undefined;
+
   return useReadContract({
     address: addresses.TokenizedPolicy as `0x${string}`,
     abi: TokenizedPolicyABI,
-    functionName: 'getPolicyTokenDetails',
-    args: policyAddress ? [policyAddress] : undefined,
+    functionName: 'getPolicyDetails',
+    args: tokenIdBigInt ? [tokenIdBigInt] : undefined,
     query: {
-      enabled: !!policyAddress && !!addresses.TokenizedPolicy,
+      enabled: !!tokenId && !!addresses.TokenizedPolicy,
     },
   });
 }
@@ -37,28 +41,36 @@ export function usePolicyMetadata(policyAddress: string | undefined) {
   });
 }
 
-export function useTokenURI(policyAddress: string | undefined) {
+export function useTokenURI(tokenId: string | number | undefined) {
   const { addresses } = useContractAddresses();
+
+  // Convert to BigInt if it's defined
+  const tokenIdBigInt = tokenId !== undefined ? BigInt(tokenId) : undefined;
+
   return useReadContract({
     address: addresses.TokenizedPolicy as `0x${string}`,
     abi: TokenizedPolicyABI,
     functionName: 'tokenURI',
-    args: policyAddress ? [policyAddress] : undefined,
+    args: tokenIdBigInt ? [tokenIdBigInt] : undefined,
     query: {
-      enabled: !!policyAddress && !!addresses.TokenizedPolicy,
+      enabled: !!tokenId && !!addresses.TokenizedPolicy,
     },
   });
 }
 
-export function useTokenOwner(policyAddress: string | undefined) {
+export function useTokenOwner(tokenId: string | number | undefined) {
   const { addresses } = useContractAddresses();
+
+  // Convert to BigInt if it's defined
+  const tokenIdBigInt = tokenId !== undefined ? BigInt(tokenId) : undefined;
+
   return useReadContract({
     address: addresses.TokenizedPolicy as `0x${string}`,
     abi: TokenizedPolicyABI,
     functionName: 'ownerOf',
-    args: policyAddress ? [policyAddress] : undefined,
+    args: tokenIdBigInt ? [tokenIdBigInt] : undefined,
     query: {
-      enabled: !!policyAddress && !!addresses.TokenizedPolicy,
+      enabled: !!tokenId && !!addresses.TokenizedPolicy,
     },
   });
 }
@@ -70,6 +82,26 @@ export function useMintPolicyToken(chainId?: number) {
   const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
     hash,
   });
+
+  // Extract token ID from transaction logs
+  let tokenId: number | undefined = undefined;
+
+  if (txData && txData.logs && txData.logs.length > 0) {
+    // Look for the PolicyMinted event
+    const policyMintedLog = txData.logs.find(log =>
+      log.topics && log.topics[0] === '0xc57b2430c63aaf86ae1865b1b458464011beb3bf14a66914f2911d07161c1c2a'
+    );
+
+    if (policyMintedLog && policyMintedLog.topics && policyMintedLog.topics.length > 1 && policyMintedLog.topics[1]) {
+      // Extract token ID from the PolicyMinted event
+      tokenId = Number(BigInt(policyMintedLog.topics[1]));
+      console.log('Token ID:', tokenId);
+    } else if (txData.logs[0] && txData.logs[0].topics && txData.logs[0].topics.length > 3 && txData.logs[0].topics[3]) {
+      // Fallback: try to extract from the Transfer event
+      tokenId = Number(BigInt(txData.logs[0].topics[3]));
+      console.log('Token ID:', tokenId);
+    }
+  }
 
   const mintPolicyToken = async (args: [`0x${string}`, string, `0x${string}`, bigint, bigint, `0x${string}`]) => {
     if (!addresses?.TokenizedPolicy) {
@@ -95,6 +127,7 @@ export function useMintPolicyToken(chainId?: number) {
     isSuccess: isTxSuccess,
     hash,
     txData,
+    tokenId,
   };
 }
 
@@ -150,7 +183,7 @@ export function useCreateLoan() {
     hash: data,
   });
 
-  const createLoan = async (args: [`0x${string}`, `0x${string}`, bigint, bigint, `0x${string}`]) => {
+  const createLoan = async (args: [`0x${string}`, bigint, bigint, bigint, `0x${string}`]) => {
     if (!addresses.LoanOrigination) {
       throw new Error('LoanOrigination address not available');
     }

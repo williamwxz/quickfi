@@ -18,6 +18,7 @@ type Policy = {
   id: number;
   chain_id: number;
   address: string; // On-chain policy token address
+  token_id?: number; // Added token_id field
   policy_number: string;
   face_value: number;
   expiry_date: string;
@@ -32,14 +33,17 @@ type Loan = {
   id: number;
   chain_id: number;
   address: string; // On-chain loan address
+  loan_id?: number; // Added loan_id field
   borrower_address: string;
   collateral_address: string; // Policy token address used as collateral
+  collateral_token_id?: number; // Added collateral_token_id field
   loan_amount: number;
   interest_rate: number;
   term_days: number;
   start_date: string;
   end_date: string;
   status: string;
+  stablecoin?: string; // Added stablecoin field
 };
 
 function DashboardContent() {
@@ -273,7 +277,7 @@ function DashboardContent() {
                           {isAvailable ? 'Available' : 'Used as Collateral'}
                         </Badge>
                       </div>
-                      <p className="text-gray-600">Policy: {policy.policy_number}</p>
+                      <p className="text-gray-600">Policy: {policy.policy_number} {policy.token_id ? `(Token ID: ${policy.token_id})` : ''}</p>
                       <div className="grid grid-cols-3 gap-8">
                         <div>
                           <p className="text-gray-600">Value</p>
@@ -396,7 +400,7 @@ function DashboardContent() {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold">Loan {formatAddress(loan.address)}</h3>
+                        <h3 className="text-lg font-semibold">Loan {formatAddress(loan.address)} {loan.loan_id ? `(ID: ${loan.loan_id})` : ''}</h3>
                         <Badge variant="secondary" className={statusClass}>
                           {statusDisplay}
                         </Badge>
@@ -408,7 +412,7 @@ function DashboardContent() {
                       )}
                     </div>
 
-                    <p className="text-gray-600">Collateral: Policy {formatAddress(loan.collateral_address)} {policy ? `(${policy.policy_number})` : ''}</p>
+                    <p className="text-gray-600">Collateral: Policy {formatAddress(loan.collateral_address)} {policy ? `(${policy.policy_number})` : ''} {loan.collateral_token_id ? `(Token ID: ${loan.collateral_token_id})` : ''}</p>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                       <div>

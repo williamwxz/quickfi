@@ -17,10 +17,14 @@ export async function POST(request: Request) {
 
     // In a real implementation, this would interact with the blockchain
 
+    // Generate a mock loan ID for demonstration purposes
+    const loanId = Math.floor(Math.random() * 1000) + 1;
+
     // Return a simple response
     return NextResponse.json({
       success: true,
       message: "Loan application would be processed in production",
+      loanId,
       tokenId,
       requestedAmount,
       duration,

@@ -96,6 +96,7 @@ export async function getContractAddresses(chainId: number = 1337) {
 export interface PolicyData {
   chainId: number;
   address: string;
+  tokenId: number;
   policyNumber: string;
   issuer: string;
   policyType: string;
@@ -140,6 +141,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
           document_hash: policyData.documentHash || null,
           owner_address: policyData.ownerAddress,
           tx_hash: policyData.txHash || null,
+          token_id: policyData.tokenId,
           status: 'active',
           updated_at: new Date().toISOString()
         })
@@ -165,6 +167,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
         {
           chain_id: policyData.chainId,
           address: policyData.address,
+          token_id: policyData.tokenId || null,
           policy_number: policyData.policyNumber,
           issuer: policyData.issuer,
           policy_type: policyData.policyType,

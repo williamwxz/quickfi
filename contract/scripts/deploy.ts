@@ -46,9 +46,9 @@ async function main() {
   let mockUSDCInstance: MockStablecoin | undefined;
   let mockUSDTInstance: MockStablecoin | undefined;
 
-  if (network.name === "hardhat" || network.name === "localhost") {
-    // Local testing - deploy MockUSDC
-    console.log("Local network detected - Deploying Mock Stablecoins...");
+  if (network.name === "hardhat" || network.name === "localhost" || network.name === "pharosDevnet" || network.name === "sepolia") {
+    // Local or testnet - deploy MockUSDC
+    console.log(`${network.name} network detected - Deploying Mock Stablecoins...`);
 
     // Deploy MockUSDC
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
@@ -221,8 +221,8 @@ async function main() {
   );
   console.log("Risk parameters set");
 
-  // For local testing, mint some stablecoins to MorphoAdapter
-  if ((network.name === "hardhat" || network.name === "localhost")) {
+  // For local or testnet, mint some stablecoins to MorphoAdapter
+  if ((network.name === "hardhat" || network.name === "localhost" || network.name === "pharosDevnet" || network.name === "sepolia")) {
     if (mockUSDCInstance) {
       console.log("Minting USDC to MorphoAdapter for testing...");
       const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
