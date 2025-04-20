@@ -12,10 +12,13 @@ import * as Select from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
+import { useAccount } from 'wagmi';
+import { useCreateLoan } from '@/hooks/useContractHooks';
+import { toast } from 'react-toastify';
+import { parseUnits } from 'viem';
 import { LTV_PARAMS, SUPPORTED_STABLECOINS, DEFAULT_STABLECOIN } from '@/config/loanParams';
 import { getTokenConfig } from '@/config/tokens';
-import { useAccount } from 'wagmi';
-import { formatAddress, getExplorerUrl } from '@/utils/explorer';
+import { formatAddress, getExplorerUrl, getTransactionUrl } from '@/utils/explorer';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -125,53 +128,98 @@ function LoanClientContent() {
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + loanTerm);
 
+  const { address } = useAccount();
+  const chainId = 11155111; // Sepolia chain ID
+  const { createLoan, isLoading: isCreatingLoan, data: loanTxHash, isSuccess: isLoanCreated } = useCreateLoan();
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Watch for transaction success
+  useEffect(() => {
+    if (isLoanCreated && loanTxHash) {
+      toast.success(
+        <div>
+          Loan created successfully! <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+        </div>
+      );
+      // Redirect to dashboard after successful loan creation
+      setTimeout(() => {
+        window.location.href = '/app/dashboard';
+      }, 3000);
+    }
+  }, [isLoanCreated, loanTxHash]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedPolicy) {
-      alert('Please select a policy to use as collateral');
+      toast.error('Please select a policy to use as collateral');
       return;
     }
 
     try {
+      setIsProcessing(true);
+
       // Get the selected policy
       const policy = policies.find(p => p.address === selectedPolicy);
 
       if (!policy) {
-        alert('Selected policy not found');
+        toast.error('Selected policy not found');
         return;
       }
 
-      // Generate a unique loan address
-      // In a real implementation, this would be the address of the loan contract
-      // For now, we'll use a deterministic address based on the policy and timestamp
-      const timestamp = Date.now().toString(16);
-      const policyAddress = policy.address.toLowerCase();
-      const loanAddress = `0x${policyAddress.slice(2, 12)}${timestamp.padStart(30, '0')}`.slice(0, 42);
+      // Convert loan amount to BigInt with 6 decimals (for USDC/USDT)
+      const loanAmountBigInt = parseUnits(loanAmount.toString(), 6);
 
-      // Insert the loan into Supabase
+      // Convert loan term from days to seconds
+      const loanTermSeconds = BigInt(loanTerm * 24 * 60 * 60);
+
+      // Get stablecoin address based on selection
+      const stablecoinAddress = selectedStablecoin === 'USDT'
+        ? process.env.NEXT_PUBLIC_USDT_ADDRESS
+        : process.env.NEXT_PUBLIC_USDC_ADDRESS;
+
+      if (!stablecoinAddress) {
+        toast.error(`${selectedStablecoin} address not configured`);
+        return;
+      }
+
+      // First, approve the policy token for transfer
+      // This would typically be done with a separate approval step
+      // For simplicity, we're assuming the token is already approved
+
+      // Call the createLoan function from our hook
+      await createLoan([
+        policy.address as `0x${string}`, // collateralToken
+        '0x1' as `0x${string}`, // collateralTokenId - assuming token ID is 1 for simplicity
+        loanAmountBigInt, // principal
+        loanTermSeconds, // duration
+        stablecoinAddress as `0x${string}` // stablecoin
+      ]);
+
+      // Store loan data in Supabase for UI purposes
+      // This will be updated once the transaction is confirmed
       const { error } = await supabase
         .from('loans')
         .insert([
           {
             chain_id: policy.chain_id,
-            address: loanAddress,
-            borrower_address: policy.owner_address,
+            borrower_address: address,
             collateral_address: policy.address,
+            collateral_token_id: 1, // Assuming token ID is 1 for simplicity
             loan_amount: loanAmount,
             interest_rate: interestRate,
             term_days: loanTerm,
             start_date: new Date().toISOString(),
             end_date: dueDate.toISOString(),
             status: 'pending',
-            stablecoin: selectedStablecoin
+            stablecoin: selectedStablecoin,
+            tx_hash: loanTxHash
           }
         ]);
 
       if (error) {
-        console.error('Error creating loan:', error);
-        alert('Failed to create loan. Please try again.');
-        return;
+        console.error('Error storing loan data:', error);
+        toast.warning('Loan initiated on blockchain but failed to store in database');
       }
 
       // Update the policy status to 'used_as_collateral'
@@ -185,13 +233,20 @@ function LoanClientContent() {
         console.error('Error updating policy status:', policyError);
       }
 
-      alert('Loan application submitted successfully!');
-
-      // Redirect to dashboard or loan details page
-      window.location.href = '/app/dashboard';
+      if (loanTxHash) {
+        toast.success(
+          <div>
+            Loan application submitted! <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+          </div>
+        );
+      } else {
+        toast.success('Loan application submitted! Waiting for blockchain confirmation...');
+      }
     } catch (error) {
       console.error('Error submitting loan application:', error);
-      alert('An error occurred. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Failed to create loan');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -421,10 +476,10 @@ function LoanClientContent() {
                 <Button
                   type="submit"
                   className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white mt-4"
-                  disabled={!selectedPolicy || loanAmount <= 0 || ltv > LTV_PARAMS.MAX_LTV}
+                  disabled={!selectedPolicy || loanAmount <= 0 || ltv > LTV_PARAMS.MAX_LTV || isProcessing || isCreatingLoan}
                   onClick={handleSubmit}
                 >
-                  Apply for {selectedStablecoin} Loan
+                  {isProcessing || isCreatingLoan ? 'Processing...' : `Apply for ${selectedStablecoin} Loan`}
                 </Button>
               </div>
             </CardContent>

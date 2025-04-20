@@ -21,28 +21,6 @@ function TokenizeContent() {
   const chainId = useChainId();
   const { mintPolicyToken, isLoading: isMinting, hash, isSuccess } = useMintPolicyToken(chainId);
 
-  // Watch for hash changes and show a success message when it becomes available
-  useEffect(() => {
-    if (hash) {
-      toast.success(
-        <div>
-          Transaction submitted! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
-        </div>
-      );
-    }
-  }, [hash, chainId]);
-
-  // Watch for transaction success and show a success message
-  useEffect(() => {
-    if (isSuccess && hash) {
-      toast.success(
-        <div>
-          Policy tokenized successfully! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
-        </div>
-      );
-    }
-  }, [isSuccess, hash, chainId]);
-
   const [formData, setFormData] = useState({
     policyNumber: '',
     issuer: '',
@@ -54,6 +32,61 @@ function TokenizeContent() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Watch for transaction hash and show initial submission message
+  useEffect(() => {
+    if (hash) {
+      toast.success(
+        <div>
+          Transaction submitted! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+        </div>
+      );
+    }
+  }, [hash, chainId]);
+
+  // Watch for transaction success, store policy data, and show final success message
+  useEffect(() => {
+    const storePolicyData = async () => {
+      if (isSuccess && hash) {
+        try {
+          const response = await fetch('/api/tokenize', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              chainId,
+              address: address,
+              ownerAddress: address,
+              policyNumber: formData.policyNumber,
+              issuer: formData.issuer,
+              policyType: 'Life', // Default to Life insurance for now
+              faceValue: formData.faceValue,
+              expiryDate: formData.expiryDate,
+              documentHash: formData.documentHash,
+              txHash: hash,
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to store policy data');
+          }
+
+          toast.success(
+            <div>
+              Policy tokenized successfully! <a href={getTransactionUrl(hash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+            </div>
+          );
+        } catch (error) {
+          console.error('Error storing policy data:', error);
+          toast.error(error instanceof Error ? error.message : 'Failed to store policy data');
+        }
+      }
+    };
+
+    storePolicyData();
+  }, [isSuccess, hash, chainId, address, formData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -104,6 +137,19 @@ function TokenizeContent() {
       return;
     }
 
+    // Validate required fields before proceeding
+    const missingFields = [];
+    if (!formData.policyNumber) missingFields.push('Policy Number');
+    if (!formData.issuer) missingFields.push('Insurance Company Name');
+    if (!formData.faceValue) missingFields.push('Face Value');
+    if (!formData.expiryDate) missingFields.push('Expiry Date');
+    if (!formData.documentHash) missingFields.push('Document Hash');
+
+    if (missingFields.length > 0) {
+      toast.error(`Missing required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
     try {
       setIsUploading(true);
 
@@ -140,45 +186,6 @@ function TokenizeContent() {
       // The hash will be set by the hook after the transaction is submitted
       // We'll use the hash from the hook in the useEffect below
 
-      // If we have a hash at this point, use it
-      const currentHash = hash;
-
-      // Store the policy data in the database
-      const response = await fetch('/api/tokenize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chainId,
-          address: address,
-          ownerAddress: address,
-          policyNumber: formData.policyNumber,
-          issuer: formData.issuer,
-          policyType: 'Life', // Fix: Default to Life insurance for now
-          faceValue: formData.faceValue,
-          expiryDate: formData.expiryDate,
-          documentHash: formData.documentHash,
-          txHash: currentHash,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to store policy data');
-      }
-
-      // If we have a hash, show a success message with a link to the transaction
-      if (currentHash) {
-        toast.success(
-          <div>
-            Policy tokenized! <a href={getTransactionUrl(currentHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
-          </div>
-        );
-      } else {
-        // Otherwise, just show a simple success message
-        toast.success('Policy tokenization initiated. Please wait for transaction confirmation.');
-      }
     } catch (error) {
       console.error('Error tokenizing policy:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to tokenize policy');
@@ -360,7 +367,7 @@ function TokenizeContent() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isUploading || isMinting || !isConnected}
+              disabled={isUploading || isMinting || !isConnected || !formData.policyNumber || !formData.issuer || !formData.faceValue || !formData.expiryDate || !formData.documentHash}
             >
               {isUploading || isMinting ? 'Processing...' : 'Tokenize Policy'}
             </Button>

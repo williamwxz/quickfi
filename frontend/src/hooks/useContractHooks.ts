@@ -150,14 +150,14 @@ export function useCreateLoan() {
     hash: data,
   });
 
-  const createLoan = async (args: [`0x${string}`, `0x${string}`, bigint, bigint]) => {
+  const createLoan = async (args: [`0x${string}`, `0x${string}`, bigint, bigint, `0x${string}`]) => {
     if (!addresses.LoanOrigination) {
       throw new Error('LoanOrigination address not available');
     }
     return writeContract({
       address: addresses.LoanOrigination as `0x${string}`,
       abi: LoanOriginationABI,
-      functionName: 'createLoan',
+      functionName: 'requestLoan',
       args,
     });
   };
