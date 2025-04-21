@@ -29,12 +29,15 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
  * @param chainId The blockchain chain ID to fetch addresses for
  * @returns An object with contract names as keys and addresses as values
  */
-export async function fetchContractAddresses(chainId: number = 1337) {
+export async function fetchContractAddresses(chainId: number = 1337): Promise<Partial<ContractAddresses> | null> {
+  console.log(`fetchContractAddresses called for chainId: ${chainId}`);
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.log('Missing Supabase credentials');
       return null;
     }
 
+    console.log('Querying Supabase for contract addresses...');
     const { data, error } = await supabase
       .from('contract_addresses')
       .select('contract_name, address')
@@ -42,22 +45,28 @@ export async function fetchContractAddresses(chainId: number = 1337) {
       .eq('is_current', true);
 
     if (error) {
-      console.error('Error fetching contract addresses:', error);
+      console.error('Error fetching contract addresses from Supabase:', error);
       return null;
     }
 
     if (!data || data.length === 0) {
+      console.log(`No contract addresses found for chain ID: ${chainId}`);
       return null;
     }
 
-    const addresses: Record<string, string> = {};
+    console.log(`Found ${data.length} contract addresses for chain ID: ${chainId}`);
+    console.log('Raw Supabase data:', data);
+
+    const addresses: Partial<ContractAddresses> = {};
     data.forEach(item => {
-      addresses[item.contract_name] = item.address;
+      // Type assertion to ensure we're only adding valid keys
+      addresses[item.contract_name as keyof ContractAddresses] = item.address;
+      console.log(`Added contract address: ${item.contract_name} = ${item.address}`);
     });
 
     return addresses;
   } catch (error) {
-    console.error('Error fetching contract addresses:', error);
+    console.error('Error fetching contract addresses from Supabase:', error);
     return null;
   }
 }
@@ -66,13 +75,37 @@ export async function fetchContractAddresses(chainId: number = 1337) {
  * Fallback function to get contract addresses from environment variables
  * @returns An object with contract names as keys and addresses as values
  */
-export function getContractAddressesFromEnv() {
+export function getContractAddressesFromEnv(): ContractAddresses {
+  // Use a safe way to access environment variables that works in both client and server components
+  const envVars = {
+    NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS: process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS,
+    NEXT_PUBLIC_RISK_ENGINE_ADDRESS: process.env.NEXT_PUBLIC_RISK_ENGINE_ADDRESS,
+    NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS: process.env.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS,
+    NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS: process.env.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS,
+    NEXT_PUBLIC_STABLECOIN_ADDRESS: process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS,
+    NEXT_PUBLIC_USDC_ADDRESS: process.env.NEXT_PUBLIC_USDC_ADDRESS,
+    NEXT_PUBLIC_USDT_ADDRESS: process.env.NEXT_PUBLIC_USDT_ADDRESS,
+  };
+
+  // Log the environment variables for debugging
+  console.log('Environment variables for contract addresses:', {
+    TokenizedPolicy: envVars.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS,
+    RiskEngine: envVars.NEXT_PUBLIC_RISK_ENGINE_ADDRESS,
+    LoanOrigination: envVars.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS,
+    MorphoAdapter: envVars.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS,
+    Stablecoin: envVars.NEXT_PUBLIC_STABLECOIN_ADDRESS,
+    USDC: envVars.NEXT_PUBLIC_USDC_ADDRESS,
+    USDT: envVars.NEXT_PUBLIC_USDT_ADDRESS,
+  });
+
   return {
-    TokenizedPolicy: process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS || '',
-    RiskEngine: process.env.NEXT_PUBLIC_RISK_ENGINE_ADDRESS || '',
-    LoanOrigination: process.env.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS || '',
-    MorphoAdapter: process.env.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS || '',
-    Stablecoin: process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS || ''
+    TokenizedPolicy: envVars.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS || '',
+    RiskEngine: envVars.NEXT_PUBLIC_RISK_ENGINE_ADDRESS || '',
+    LoanOrigination: envVars.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS || '',
+    MorphoAdapter: envVars.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS || '',
+    Stablecoin: envVars.NEXT_PUBLIC_STABLECOIN_ADDRESS || '',
+    USDC: envVars.NEXT_PUBLIC_USDC_ADDRESS || '',
+    USDT: envVars.NEXT_PUBLIC_USDT_ADDRESS || ''
   };
 }
 
@@ -81,13 +114,41 @@ export function getContractAddressesFromEnv() {
  * @param chainId The blockchain chain ID to fetch addresses for
  * @returns An object with contract names as keys and addresses as values
  */
-export async function getContractAddresses(chainId: number = 1337) {
+// Define the contract addresses type
+type ContractAddresses = {
+  TokenizedPolicy: string;
+  RiskEngine: string;
+  LoanOrigination: string;
+  MorphoAdapter: string;
+  Stablecoin: string;
+  USDC: string;
+  USDT: string;
+};
+
+export async function getContractAddresses(chainId: number = 1337): Promise<ContractAddresses> {
+  console.log(`getContractAddresses called for chainId: ${chainId}`);
+
   const supabaseAddresses = await fetchContractAddresses(chainId);
+  console.log('Supabase addresses:', supabaseAddresses);
+
+  const envAddresses = getContractAddressesFromEnv();
+  console.log('Environment addresses:', envAddresses);
+
   if (supabaseAddresses) {
-    return supabaseAddresses;
+    // Merge Supabase addresses with environment variables
+    // Environment variables take precedence for USDC and USDT
+    const mergedAddresses = {
+      ...supabaseAddresses,
+      USDC: envAddresses.USDC,
+      USDT: envAddresses.USDT
+    } as ContractAddresses;
+
+    console.log('Merged addresses:', mergedAddresses);
+    return mergedAddresses;
   }
 
-  return getContractAddressesFromEnv();
+  console.log('Using environment addresses only');
+  return envAddresses as ContractAddresses;
 }
 
 /**

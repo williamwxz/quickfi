@@ -3,6 +3,10 @@ import { BaseContract } from "ethers";
 import * as fs from "fs";
 import * as path from "path";
 import { createClient } from '@supabase/supabase-js';
+import * as dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 interface MockStablecoin extends BaseContract {
   mint(to: string, amount: bigint): Promise<any>;
@@ -16,14 +20,47 @@ interface LoanOrigination extends BaseContract {
   updateMorphoAdapter(adapter: string): Promise<any>;
 }
 
+/**
+ * Retry function with exponential backoff
+ */
+async function retry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 5,
+  initialDelay: number = 1000,
+  maxDelay: number = 30000,
+  name: string = "operation"
+): Promise<T> {
+  let retries = 0;
+  let delay = initialDelay;
+
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      retries++;
+      if (retries > maxRetries) {
+        console.error(`Failed ${name} after ${maxRetries} retries`);
+        throw error;
+      }
+
+      console.log(`Attempt ${retries} for ${name} failed. Retrying in ${delay / 1000} seconds...`);
+      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+
+      // Wait for the delay period
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      // Exponential backoff with jitter
+      delay = Math.min(delay * 2, maxDelay) * (0.8 + Math.random() * 0.4);
+    }
+  }
+}
+
 async function main() {
   // Validate Supabase credentials before starting deployment
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-    console.error("Error: SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required");
-    console.error("Please add them to your .env file:");
-    console.error("SUPABASE_URL=your_supabase_url");
-    console.error("SUPABASE_ANON_KEY=your_supabase_anon_key");
-    process.exit(1);
+    console.warn("Warning: SUPABASE_URL and SUPABASE_ANON_KEY environment variables are not set.");
+    console.warn("Contract addresses will not be automatically uploaded to Supabase.");
+    return;
   }
 
   const network = await ethers.provider.getNetwork();
@@ -32,11 +69,25 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
 
+  // Get the current nonce
+  const currentNonce = await ethers.provider.getTransactionCount(deployer.address);
+  console.log("Starting deployment with nonce:", currentNonce);
+
   // Deploy TokenRegistry
   console.log("Deploying TokenRegistry...");
   const TokenRegistryFactory = await ethers.getContractFactory("TokenRegistry");
-  const tokenRegistry = await TokenRegistryFactory.deploy() as unknown as TokenRegistry;
-  await tokenRegistry.waitForDeployment();
+  const tokenRegistry = await retry(
+    () => TokenRegistryFactory.deploy({
+      gasLimit: 5000000
+    }),
+    5, 1000, 30000, "TokenRegistry deployment"
+  ) as unknown as TokenRegistry;
+
+  await retry(
+    () => tokenRegistry.waitForDeployment(),
+    5, 1000, 30000, "TokenRegistry deployment confirmation"
+  );
+
   const tokenRegistryAddress = await tokenRegistry.getAddress();
   console.log("TokenRegistry deployed to:", tokenRegistryAddress);
 
@@ -52,44 +103,92 @@ async function main() {
 
     // Deploy MockUSDC
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const mockUSDC = await MockUSDC.deploy("USD Coin", "USDC", 6);
-    await mockUSDC.waitForDeployment();
+    const mockUSDC = await retry(
+      () => MockUSDC.deploy("USD Coin", "USDC", 6, {
+        gasLimit: 5000000
+      }),
+      5, 1000, 30000, "MockUSDC deployment"
+    );
+
+    await retry(
+      () => mockUSDC.waitForDeployment(),
+      5, 1000, 30000, "MockUSDC deployment confirmation"
+    );
+
     usdcAddress = await mockUSDC.getAddress();
     mockUSDCInstance = mockUSDC as unknown as MockStablecoin;
     console.log("MockUSDC deployed to:", usdcAddress);
 
     // Mint some test USDC
     const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
-    await mockUSDCInstance.mint(deployer.address, usdcAmount);
+    await retry(
+      async () => {
+        const tx = await mockUSDCInstance!.mint(deployer.address, usdcAmount);
+        await tx.wait();
+        return tx;
+      },
+      5, 1000, 30000, "USDC minting"
+    );
     console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to deployer");
 
     // Deploy MockUSDT
     const MockUSDT = await ethers.getContractFactory("MockUSDC"); // Reuse MockUSDC contract
-    const mockUSDT = await MockUSDT.deploy("Tether USD", "USDT", 6);
-    await mockUSDT.waitForDeployment();
+    const mockUSDT = await retry(
+      () => MockUSDT.deploy("Tether USD", "USDT", 6, {
+        gasLimit: 5000000
+      }),
+      5, 1000, 30000, "MockUSDT deployment"
+    );
+
+    await retry(
+      () => mockUSDT.waitForDeployment(),
+      5, 1000, 30000, "MockUSDT deployment confirmation"
+    );
+
     usdtAddress = await mockUSDT.getAddress();
     mockUSDTInstance = mockUSDT as unknown as MockStablecoin;
     console.log("MockUSDT deployed to:", usdtAddress);
 
     // Mint some test USDT
     const usdtAmount = ethers.parseUnits("1000000", 6); // 1M USDT
-    await mockUSDTInstance.mint(deployer.address, usdtAmount);
+    await retry(
+      async () => {
+        const tx = await mockUSDTInstance!.mint(deployer.address, usdtAmount);
+        await tx.wait();
+        return tx;
+      },
+      5, 1000, 30000, "USDT minting"
+    );
     console.log("Minted", ethers.formatUnits(usdtAmount, 6), "USDT to deployer");
 
     // Add tokens to registry
-    await tokenRegistry.addToken(
-      usdcAddress,
-      6,
-      ethers.parseUnits("100", 6), // Min loan amount: 100 USDC
-      ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDC
+    await retry(
+      async () => {
+        const tx = await tokenRegistry.addToken(
+          usdcAddress,
+          6,
+          ethers.parseUnits("100", 6), // Min loan amount: 100 USDC
+          ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDC
+        );
+        await tx.wait();
+        return tx;
+      },
+      5, 1000, 30000, "Adding USDC to TokenRegistry"
     );
     console.log("Added USDC to TokenRegistry");
 
-    await tokenRegistry.addToken(
-      usdtAddress,
-      6,
-      ethers.parseUnits("100", 6), // Min loan amount: 100 USDT
-      ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDT
+    await retry(
+      async () => {
+        const tx = await tokenRegistry.addToken(
+          usdtAddress,
+          6,
+          ethers.parseUnits("100", 6), // Min loan amount: 100 USDT
+          ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDT
+        );
+        await tx.wait();
+        return tx;
+      },
+      5, 1000, 30000, "Adding USDT to TokenRegistry"
     );
     console.log("Added USDT to TokenRegistry");
   } else {
@@ -108,19 +207,33 @@ async function main() {
     console.log("- USDT:", usdtAddress);
 
     // Add tokens to registry
-    await tokenRegistry.addToken(
-      usdcAddress,
-      6,
-      ethers.parseUnits("100", 6), // Min loan amount: 100 USDC
-      ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDC
+    await retry(
+      async () => {
+        const tx = await tokenRegistry.addToken(
+          usdcAddress,
+          6,
+          ethers.parseUnits("100", 6), // Min loan amount: 100 USDC
+          ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDC
+        );
+        await tx.wait();
+        return tx;
+      },
+      5, 1000, 30000, "Adding USDC to TokenRegistry"
     );
     console.log("Added USDC to TokenRegistry");
 
-    await tokenRegistry.addToken(
-      usdtAddress,
-      6,
-      ethers.parseUnits("100", 6), // Min loan amount: 100 USDT
-      ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDT
+    await retry(
+      async () => {
+        const tx = await tokenRegistry.addToken(
+          usdtAddress,
+          6,
+          ethers.parseUnits("100", 6), // Min loan amount: 100 USDT
+          ethers.parseUnits("100000", 6) // Max loan amount: 100,000 USDT
+        );
+        await tx.wait();
+        return tx;
+      },
+      5, 1000, 30000, "Adding USDT to TokenRegistry"
     );
     console.log("Added USDT to TokenRegistry");
   }
@@ -128,28 +241,61 @@ async function main() {
   // Deploy TokenizedPolicy (non-proxy version for simplicity)
   console.log("Deploying TokenizedPolicy...");
   const TokenizedPolicy = await ethers.getContractFactory("TokenizedPolicy");
-  const tokenizedPolicyInstance = await TokenizedPolicy.deploy("Insurance Policy Token", "IPT");
-  await tokenizedPolicyInstance.waitForDeployment();
+  const tokenizedPolicyInstance = await retry(
+    () => TokenizedPolicy.deploy("Insurance Policy Token", "IPT", {
+      gasLimit: 5000000
+    }),
+    5, 1000, 30000, "TokenizedPolicy deployment"
+  );
+
+  await retry(
+    () => tokenizedPolicyInstance.waitForDeployment(),
+    5, 1000, 30000, "TokenizedPolicy deployment confirmation"
+  );
+
   const tokenizedPolicyAddress = await tokenizedPolicyInstance.getAddress();
   console.log("TokenizedPolicy deployed to:", tokenizedPolicyAddress);
 
   // Deploy RiskEngine
   console.log("Deploying RiskEngine...");
   const RiskEngine = await ethers.getContractFactory("RiskEngine");
-  const riskEngine = await RiskEngine.deploy();
-  await riskEngine.waitForDeployment();
-  console.log("RiskEngine deployed to:", await riskEngine.getAddress());
+  const riskEngine = await retry(
+    () => RiskEngine.deploy({
+      gasLimit: 5000000
+    }),
+    5, 1000, 30000, "RiskEngine deployment"
+  );
+
+  await retry(
+    () => riskEngine.waitForDeployment(),
+    5, 1000, 30000, "RiskEngine deployment confirmation"
+  );
+
+  const riskEngineAddress = await riskEngine.getAddress();
+  console.log("RiskEngine deployed to:", riskEngineAddress);
 
   // Deploy contracts with circular dependencies using placeholder addresses first
   console.log("Deploying LoanOrigination with placeholder addresses...");
   const LoanOriginationFactory = await ethers.getContractFactory("LoanOrigination");
-  const loanOrigination = await LoanOriginationFactory.deploy(
-    await riskEngine.getAddress(),
-    deployer.address, // Temporary placeholder for MorphoAdapter
-    tokenRegistryAddress
-  ) as unknown as LoanOrigination;
-  await loanOrigination.waitForDeployment();
-  console.log("LoanOrigination deployed to:", await loanOrigination.getAddress());
+
+  const loanOrigination = await retry(async () => {
+    return LoanOriginationFactory.deploy(
+      riskEngineAddress,
+      deployer.address, // Temporary placeholder for MorphoAdapter
+      tokenRegistryAddress,
+      {
+        gasLimit: 5000000
+      }
+    );
+  }, 5, 1000, 30000, "LoanOrigination deployment") as unknown as LoanOrigination;
+
+  await retry(
+    () => loanOrigination.waitForDeployment(),
+    5, 1000, 30000, "LoanOrigination deployment confirmation"
+  );
+
+  const loanOriginationAddress = await loanOrigination.getAddress();
+  console.log("LoanOrigination deployed to:", loanOriginationAddress);
 
   // Deploy MorphoAdapter with Proxy Pattern
   console.log("Deploying MorphoAdapter with Proxy Pattern...");
@@ -161,32 +307,63 @@ async function main() {
 
   // 1. Deploy the implementation contract
   console.log("Deploying MorphoAdapter implementation...");
-  const morphoAdapterImplementation = await MorphoAdapter.deploy();
-  await morphoAdapterImplementation.waitForDeployment();
+  const morphoAdapterImplementation = await retry(
+    () => MorphoAdapter.deploy({
+      gasLimit: 5000000
+    }),
+    5, 1000, 30000, "MorphoAdapter implementation deployment"
+  );
+
+  await retry(
+    () => morphoAdapterImplementation.waitForDeployment(),
+    5, 1000, 30000, "MorphoAdapter implementation deployment confirmation"
+  );
+
   const implementationAddress = await morphoAdapterImplementation.getAddress();
   console.log("MorphoAdapter implementation deployed to:", implementationAddress);
 
   // 2. Deploy the ProxyAdmin (owner of the proxy)
   console.log("Deploying ProxyAdmin...");
-  const proxyAdmin = await ProxyAdmin.deploy();
-  await proxyAdmin.waitForDeployment();
+  const proxyAdmin = await retry(
+    () => ProxyAdmin.deploy({
+      gasLimit: 5000000
+    }),
+    5, 1000, 30000, "ProxyAdmin deployment"
+  );
+
+  await retry(
+    () => proxyAdmin.waitForDeployment(),
+    5, 1000, 30000, "ProxyAdmin deployment confirmation"
+  );
+
   const proxyAdminAddress = await proxyAdmin.getAddress();
   console.log("ProxyAdmin deployed to:", proxyAdminAddress);
 
   // 3. Prepare initialization data
   const initData = MorphoAdapter.interface.encodeFunctionData(
     "initialize",
-    [await loanOrigination.getAddress(), tokenRegistryAddress]
+    [loanOriginationAddress, tokenRegistryAddress]
   );
 
   // 4. Deploy the TransparentUpgradeableProxy
   console.log("Deploying TransparentUpgradeableProxy...");
-  const proxy = await TransparentUpgradeableProxy.deploy(
-    implementationAddress,
-    proxyAdminAddress,
-    initData
+  const proxy = await retry(
+    () => TransparentUpgradeableProxy.deploy(
+      implementationAddress,
+      proxyAdminAddress,
+      initData,
+      {
+        gasLimit: 5000000
+      }
+    ),
+    5, 1000, 30000, "TransparentUpgradeableProxy deployment"
   );
-  await proxy.waitForDeployment();
+
+  await retry(
+    () => proxy.waitForDeployment(),
+    5, 1000, 30000, "TransparentUpgradeableProxy deployment confirmation"
+  );
+
   const proxyAddress = await proxy.getAddress();
   console.log("TransparentUpgradeableProxy deployed to:", proxyAddress);
 
@@ -199,7 +376,10 @@ async function main() {
 
   // Verify initialization was successful
   try {
-    const loanOriginationAddress = await morphoAdapter.loanOrigination();
+    const loanOriginationAddress = await retry(
+      () => morphoAdapter.loanOrigination(),
+      5, 1000, 30000, "MorphoAdapter initialization verification"
+    );
     console.log("MorphoAdapter successfully initialized with LoanOrigination:", loanOriginationAddress);
   } catch (error) {
     console.error("Error verifying MorphoAdapter initialization:", error);
@@ -208,17 +388,26 @@ async function main() {
 
   // Update LoanOrigination with the correct MorphoAdapter address
   console.log("Updating LoanOrigination with correct MorphoAdapter address...");
-  await loanOrigination.updateMorphoAdapter(await morphoAdapter.getAddress());
+  await retry(async () => {
+    const morphoAdapterAddress = await morphoAdapter.getAddress();
+    const tx = await loanOrigination.updateMorphoAdapter(morphoAdapterAddress);
+    await tx.wait();
+    return tx;
+  }, 5, 1000, 30000, "Updating LoanOrigination with MorphoAdapter address");
   console.log("LoanOrigination updated");
 
   // Set risk parameters for the tokenized policy in the risk engine
   console.log("Setting risk parameters for TokenizedPolicy...");
-  await riskEngine.updateRiskParameters(
-    await tokenizedPolicyInstance.getAddress(),
-    7000, // 70% max LTV
-    8500, // 85% liquidation threshold
-    500   // 5% base interest rate
-  );
+  await retry(async () => {
+    const tx = await riskEngine.updateRiskParameters(
+      tokenizedPolicyAddress,
+      7000, // 70% max LTV
+      8500, // 85% liquidation threshold
+      500   // 5% base interest rate
+    );
+    await tx.wait();
+    return tx;
+  }, 5, 1000, 30000, "Setting risk parameters");
   console.log("Risk parameters set");
 
   // For local or testnet, mint some stablecoins to MorphoAdapter
@@ -226,14 +415,24 @@ async function main() {
     if (mockUSDCInstance) {
       console.log("Minting USDC to MorphoAdapter for testing...");
       const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
-      await mockUSDCInstance.mint(await morphoAdapter.getAddress(), usdcAmount);
+      await retry(async () => {
+        const morphoAdapterAddress = await morphoAdapter.getAddress();
+        const tx = await mockUSDCInstance!.mint(morphoAdapterAddress, usdcAmount);
+        await tx.wait();
+        return tx;
+      }, 5, 1000, 30000, "Minting USDC to MorphoAdapter");
       console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to MorphoAdapter");
     }
 
     if (mockUSDTInstance) {
       console.log("Minting USDT to MorphoAdapter for testing...");
       const usdtAmount = ethers.parseUnits("1000000", 6); // 1M USDT
-      await mockUSDTInstance.mint(await morphoAdapter.getAddress(), usdtAmount);
+      await retry(async () => {
+        const morphoAdapterAddress = await morphoAdapter.getAddress();
+        const tx = await mockUSDTInstance!.mint(morphoAdapterAddress, usdtAmount);
+        await tx.wait();
+        return tx;
+      }, 5, 1000, 30000, "Minting USDT to MorphoAdapter");
       console.log("Minted", ethers.formatUnits(usdtAmount, 6), "USDT to MorphoAdapter");
     }
   }
@@ -333,7 +532,6 @@ async function main() {
 
       // Update frontend .env.local file
       await updateFrontendEnv(network.name, deployedAddresses);
-
     } catch (error) {
       console.error("Failed to upload addresses to Supabase:", error);
       console.log("You can manually upload addresses later with: npm run upload-addresses");
@@ -400,6 +598,9 @@ async function updateFrontendEnv(network: string, addresses: Record<string, stri
   console.log(`Frontend environment variables updated in ${envPath}`);
 }
 
+
+
+// Run the main deployment function
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;

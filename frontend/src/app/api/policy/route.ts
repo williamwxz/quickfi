@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      contractAddress: addressObj['TokenizedPolicy'],
+      contractAddress: addressObj.TokenizedPolicy,
       policies: data || []
     });
   } catch (error) {

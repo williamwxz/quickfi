@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ address: string }> }
 ) {
   try {
     const { address } = await params;
+    const url = new URL(request.url);
+    const chainId = url.searchParams.get('chainId');
 
     if (!address) {
       return NextResponse.json(
@@ -16,11 +18,18 @@ export async function GET(
     }
 
     // Fetch policies from Supabase for this owner
-    const { data, error } = await supabase
+    let query = supabase
       .from('policies')
       .select('*')
-      .eq('owner_address', address)
-      .order('created_at', { ascending: false });
+      .eq('owner_address', address);
+
+    // Filter by chain ID if provided
+    if (chainId) {
+      query = query.eq('chain_id', parseInt(chainId));
+    }
+
+    // Execute the query with ordering
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching policies from Supabase:', error);

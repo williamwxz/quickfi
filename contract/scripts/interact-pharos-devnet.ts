@@ -7,10 +7,10 @@ async function main() {
   console.log("Interacting with QuickFi contracts on", network.name);
 
   // Load deployed contract addresses
-  const addressesPath = path.join(__dirname, "../deployed-addresses-pharos-devnet.json");
+  const addressesPath = path.join(__dirname, "../deployed-addresses.json");
   const addressesJson = fs.readFileSync(addressesPath, "utf8");
-  const addresses = JSON.parse(addressesJson);
-  
+  const addresses = JSON.parse(addressesJson) as Record<string, Record<string, string>>;
+
   const networkAddresses = addresses["pharosDevnet"];
   if (!networkAddresses) {
     throw new Error(`No addresses found for network: ${network.name}`);
@@ -18,7 +18,7 @@ async function main() {
 
   const [deployer] = await ethers.getSigners();
   console.log("Interacting with account:", deployer.address);
-  
+
   // Check balance
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Account balance:", ethers.formatEther(balance), "ETH");
@@ -28,7 +28,7 @@ async function main() {
   const riskEngine = await ethers.getContractAt("RiskEngine", networkAddresses.RiskEngine);
   const loanOrigination = await ethers.getContractAt("LoanOrigination", networkAddresses.LoanOrigination);
   const morphoAdapter = await ethers.getContractAt("MorphoAdapter", networkAddresses.MorphoAdapter);
-  
+
   console.log("Connected to deployed contracts");
 
   // Get contract information
@@ -40,11 +40,15 @@ async function main() {
   try {
     const riskParams = await riskEngine.getRiskParameters(networkAddresses.TokenizedPolicy);
     console.log("Risk Parameters for TokenizedPolicy:");
-    console.log("- Max LTV:", riskParams.maxLTV / 100, "%");
-    console.log("- Liquidation Threshold:", riskParams.liquidationThreshold / 100, "%");
-    console.log("- Base Interest Rate:", riskParams.baseInterestRate / 100, "%");
+    console.log("- Max LTV:", Number(riskParams.maxLTV) / 100, "%");
+    console.log("- Liquidation Threshold:", Number(riskParams.liquidationThreshold) / 100, "%");
+    console.log("- Base Interest Rate:", Number(riskParams.baseInterestRate) / 100, "%");
   } catch (error) {
-    console.log("Could not get risk parameters:", error.message);
+    if (error instanceof Error) {
+      console.log("Could not get risk parameters:", error.message);
+    } else {
+      console.log("Could not get risk parameters: Unknown error");
+    }
   }
 
   // Check if MorphoAdapter is properly linked to LoanOrigination
@@ -54,7 +58,11 @@ async function main() {
     console.log("Expected MorphoAdapter address:", networkAddresses.MorphoAdapter);
     console.log("MorphoAdapter properly linked:", morphoAdapterAddress === networkAddresses.MorphoAdapter);
   } catch (error) {
-    console.log("Could not check MorphoAdapter link:", error.message);
+    if (error instanceof Error) {
+      console.log("Could not check MorphoAdapter link:", error.message);
+    } else {
+      console.log("Could not check MorphoAdapter link: Unknown error");
+    }
   }
 
   console.log("\nInteraction completed successfully!");
