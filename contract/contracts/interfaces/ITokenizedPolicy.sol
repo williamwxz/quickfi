@@ -21,6 +21,11 @@ interface ITokenizedPolicy {
         uint256 newValuation
     );
 
+    event PolicyExpiryDateUpdated(
+        uint256 indexed tokenId,
+        uint256 newExpiryDate
+    );
+
     /**
      * @dev Initializes the contract
      * @param name The token name
@@ -77,4 +82,18 @@ interface ITokenizedPolicy {
      * @return The policy valuation amount
      */
     function getValuation(uint256 tokenId) external view returns (uint256);
+
+    /**
+     * @dev Gets the expiry date of a policy
+     * @param tokenId The token ID
+     * @return The policy expiry date timestamp
+     */
+    function getExpiryDate(uint256 tokenId) external view returns (uint256);
+
+    /**
+     * @dev Updates the expiry date of a policy (admin only)
+     * @param tokenId The token ID
+     * @param newExpiryDate The new expiry date timestamp
+     */
+    function updatePolicyExpiryDate(uint256 tokenId, uint256 newExpiryDate) external;
 }

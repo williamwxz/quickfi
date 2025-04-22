@@ -11,12 +11,12 @@ import "../interfaces/ITokenizedPolicy.sol";
  * @title TokenizedPolicyUpgradeable
  * @dev Upgradeable ERC721 token representing insurance policies
  */
-contract TokenizedPolicyUpgradeable is 
+contract TokenizedPolicyUpgradeable is
     ITokenizedPolicy,
     Initializable,
     ERC721Upgradeable,
     AccessControlUpgradeable,
-    UUPSUpgradeable 
+    UUPSUpgradeable
 {
     // Roles
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -146,6 +146,31 @@ contract TokenizedPolicyUpgradeable is
     }
 
     /**
+     * @dev Gets the expiry date of a policy
+     * @param tokenId The token ID
+     * @return The policy expiry date timestamp
+     */
+    function getExpiryDate(uint256 tokenId) external view returns (uint256) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        return _policyDetails[tokenId].expiryDate;
+    }
+
+    /**
+     * @dev Updates the expiry date of a policy (admin only)
+     * @param tokenId The token ID
+     * @param newExpiryDate The new expiry date timestamp
+     */
+    function updatePolicyExpiryDate(uint256 tokenId, uint256 newExpiryDate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        require(newExpiryDate > block.timestamp, "TokenizedPolicy: Expiry date must be in the future");
+
+        _policyDetails[tokenId].expiryDate = newExpiryDate;
+        emit PolicyExpiryDateUpdated(tokenId, newExpiryDate);
+    }
+
+
+
+    /**
      * @dev Required by UUPS pattern
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
@@ -162,4 +187,4 @@ contract TokenizedPolicyUpgradeable is
     {
         return super.supportsInterface(interfaceId);
     }
-} 
+}

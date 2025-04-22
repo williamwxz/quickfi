@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     } = body;
 
     // Validate required fields
-    if (!policyNumber || !faceValue || !issuer || !expiryDate || !userAddress || !tokenId) {
+    if (!policyNumber || !faceValue || !issuer || !expiryDate || !userAddress || tokenId === undefined) {
       return NextResponse.json(
         { error: "Missing required policy information" },
         { status: 400 }
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       : '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
     // Validate token ID
-    if (!tokenId) {
+    if (tokenId === undefined) {
       console.error('No token ID provided in the request');
       return NextResponse.json({ error: 'Token ID is required' }, { status: 400 });
     }

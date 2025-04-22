@@ -21,9 +21,9 @@ export function usePolicyTokenDetails(tokenId: string | number | undefined) {
     address: addresses.TokenizedPolicy as `0x${string}`,
     abi: TokenizedPolicyABI,
     functionName: 'getPolicyDetails',
-    args: tokenIdBigInt ? [tokenIdBigInt] : undefined,
+    args: tokenIdBigInt !== undefined ? [tokenIdBigInt] : undefined,
     query: {
-      enabled: !!tokenId && !!addresses.TokenizedPolicy,
+      enabled: tokenId !== undefined && !!addresses.TokenizedPolicy,
     },
   });
 }
@@ -51,9 +51,9 @@ export function useTokenURI(tokenId: string | number | undefined) {
     address: addresses.TokenizedPolicy as `0x${string}`,
     abi: TokenizedPolicyABI,
     functionName: 'tokenURI',
-    args: tokenIdBigInt ? [tokenIdBigInt] : undefined,
+    args: tokenIdBigInt !== undefined ? [tokenIdBigInt] : undefined,
     query: {
-      enabled: !!tokenId && !!addresses.TokenizedPolicy,
+      enabled: tokenId !== undefined && !!addresses.TokenizedPolicy,
     },
   });
 }
@@ -68,9 +68,9 @@ export function useTokenOwner(tokenId: string | number | undefined) {
     address: addresses.TokenizedPolicy as `0x${string}`,
     abi: TokenizedPolicyABI,
     functionName: 'ownerOf',
-    args: tokenIdBigInt ? [tokenIdBigInt] : undefined,
+    args: tokenIdBigInt !== undefined ? [tokenIdBigInt] : undefined,
     query: {
-      enabled: !!tokenId && !!addresses.TokenizedPolicy,
+      enabled: tokenId !== undefined && !!addresses.TokenizedPolicy,
     },
   });
 }
@@ -220,9 +220,9 @@ export function useSetApprovalForAll() {
 // Loan Origination Hooks
 export function useCreateLoan() {
   const { addresses } = useContractAddresses();
-  const { data, isPending, writeContract, error } = useWriteContract();
+  const { data, isPending, writeContract } = useWriteContract();
 
-  const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
+  const { data: txData, isLoading: isTxLoading, isSuccess: isTxSuccess, error: txError, status: txStatus } = useWaitForTransactionReceipt({
     hash: data,
   });
 
@@ -230,12 +230,31 @@ export function useCreateLoan() {
     if (!addresses.LoanOrigination) {
       throw new Error('LoanOrigination address not available');
     }
-    return writeContract({
-      address: addresses.LoanOrigination as `0x${string}`,
-      abi: LoanOriginationABI,
-      functionName: 'requestLoan',
-      args,
-    });
+
+    try {
+      // Prepare the transaction request
+      const request = {
+        address: addresses.LoanOrigination as `0x${string}`,
+        abi: LoanOriginationABI,
+        functionName: 'requestLoan',
+        args,
+        // Base gas configuration
+        gas: BigInt(1000000), // 1 million gas
+        maxFeePerGas: BigInt(20000000000), // 20 gwei
+        maxPriorityFeePerGas: BigInt(20000000000), // 20 gwei
+      };
+
+      console.log('Sending transaction with config:', {
+        gas: request.gas?.toString(),
+        maxFeePerGas: request.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: request.maxPriorityFeePerGas?.toString(),
+      });
+
+      return writeContract(request);
+    } catch (error) {
+      console.error('Error in createLoan:', error);
+      throw error;
+    }
   };
 
   return {
@@ -244,7 +263,8 @@ export function useCreateLoan() {
     txData,
     isLoading: isPending || isTxLoading,
     isSuccess: isTxSuccess,
-    error,
+    txError,
+    txStatus
   };
 }
 

@@ -179,6 +179,31 @@ contract TokenizedPolicy is
     }
 
     /**
+     * @dev Gets the expiry date of a policy
+     * @param tokenId The token ID
+     * @return The policy expiry date timestamp
+     */
+    function getExpiryDate(uint256 tokenId) external view returns (uint256) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        return _policyDetails[tokenId].expiryDate;
+    }
+
+    /**
+     * @dev Updates the expiry date of a policy (admin only)
+     * @param tokenId The token ID
+     * @param newExpiryDate The new expiry date timestamp
+     */
+    function updatePolicyExpiryDate(uint256 tokenId, uint256 newExpiryDate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_exists(tokenId), "TokenizedPolicy: Invalid token ID");
+        require(newExpiryDate > block.timestamp, "TokenizedPolicy: Expiry date must be in the future");
+
+        _policyDetails[tokenId].expiryDate = newExpiryDate;
+        emit PolicyExpiryDateUpdated(tokenId, newExpiryDate);
+    }
+
+
+
+    /**
      * @dev See {IERC165-supportsInterface}
      */
     function supportsInterface(bytes4 interfaceId)

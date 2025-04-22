@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     const { tokenId, loanAmount, duration } = body;
 
     // Validate input
-    if (!tokenId || !loanAmount || !duration) {
+    if (tokenId === undefined || !loanAmount || !duration) {
       return NextResponse.json(
         { error: "Missing required fields: tokenId, loanAmount, duration" },
         { status: 400 }
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     // In a real implementation, this would interact with the blockchain
-    
+
     // Return a simple response
     return NextResponse.json({
       success: true,

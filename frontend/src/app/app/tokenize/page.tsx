@@ -47,7 +47,8 @@ function TokenizeContent() {
       }
 
       // We must have a token ID from the smart contract
-      if (!tokenId) {
+      // Use strict comparison with undefined to handle token ID 0 correctly
+      if (tokenId === undefined) {
         throw new Error("Failed to extract token ID from transaction logs. Please check the console for more details.");
       }
 

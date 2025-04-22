@@ -51,7 +51,7 @@ function LoanClientContent() {
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedStablecoin, setSelectedStablecoin] = useState<string>(DEFAULT_STABLECOIN);
-  const { createLoan, isLoading: isCreatingLoan, data: loanTxHash, isSuccess: isLoanCreated, error: loanError } = useCreateLoan();
+  const { createLoan, isLoading: isCreatingLoan, data: loanTxHash, isSuccess: isLoanCreated, txStatus: txStatus, txError: txError } = useCreateLoan();
   const { setApprovalForAll } = useSetApprovalForAll();
   const { addresses, refetch: refetchAddresses } = useContractAddresses();
 
@@ -161,9 +161,36 @@ function LoanClientContent() {
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + loanTerm);
 
-  // Watch for transaction success
+  // Watch for transaction status
   useEffect(() => {
-    if (isLoanCreated && loanTxHash) {
+    if (!loanTxHash) return;
+
+    // Show initial processing toast
+    if (!toast.isActive('loan-processing')) {
+      toast.loading('Processing loan request...', { toastId: 'loan-processing' });
+    }
+
+    // Handle transaction failure
+    if (txError) {
+      console.error('Loan transaction failed:', txError);
+      toast.update('loan-processing', {
+        render: (
+          <div className="text-red-500">
+            Loan request failed: {txError instanceof Error ? txError.message : 'Transaction reverted'}. 
+            <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline ml-1">
+              View transaction
+            </a>
+          </div>
+        ),
+        type: 'error',
+        autoClose: 5000,
+        isLoading: false
+      });
+      return;
+    }
+
+    // Handle successful transaction
+    if (isLoanCreated && txStatus === 'success') {
       // Get the selected policy
       const policy = policies.find(p => p.token_id === selectedPolicyId);
 
@@ -184,7 +211,8 @@ function LoanClientContent() {
                 loanAmount: loanAmount,
                 interestRate: interestRate,
                 termDays: loanTerm,
-                stablecoin: selectedStablecoin
+                stablecoin: selectedStablecoin,
+                transactionHash: loanTxHash
               }),
             });
 
@@ -197,7 +225,7 @@ function LoanClientContent() {
             // Update the existing toast with success message
             toast.update('loan-processing', {
               render: (
-                <div>
+                <div className="text-green-500">
                   Loan created successfully! <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
                 </div>
               ),
@@ -214,7 +242,11 @@ function LoanClientContent() {
             console.error('Error storing loan data via API:', apiError);
             // Update the existing toast with warning message
             toast.update('loan-processing', {
-              render: `Loan initiated on blockchain but failed to store in database: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
+              render: (
+                <div className="text-yellow-500">
+                  Loan initiated on blockchain but failed to store in database: {apiError instanceof Error ? apiError.message : String(apiError)}
+                </div>
+              ),
               type: 'warning',
               autoClose: 5000,
               isLoading: false
@@ -223,54 +255,7 @@ function LoanClientContent() {
         })();
       }
     }
-  }, [isLoanCreated, loanTxHash, chainId, selectedPolicyId, policies, address, loanAmount, interestRate, loanTerm, selectedStablecoin]);
-
-  // Watch for transaction failure
-  useEffect(() => {
-    if (loanError) {
-      // Get a more user-friendly error message
-      let errorMessage = 'Transaction failed';
-
-      if (loanError.message) {
-        if (loanError.message.includes('user rejected transaction')) {
-          errorMessage = 'Transaction was rejected in your wallet';
-        } else if (loanError.message.includes('execution reverted')) {
-          // Check for common errors
-          if (loanError.message.includes('invalid token')) {
-            errorMessage = 'Invalid policy token. Please select a different policy.';
-          } else if (loanError.message.includes('not approved')) {
-            errorMessage = 'Policy token not approved for loan. Please try again.';
-          } else if (loanError.message.includes('insufficient allowance')) {
-            errorMessage = 'Insufficient stablecoin allowance. Please approve more tokens.';
-          } else if (loanError.message.includes('Failed to get policy details')) {
-            errorMessage = 'This policy has invalid or missing details. Please select a different policy.';
-          } else if (loanError.message.includes('Policy valuation must be greater than zero')) {
-            errorMessage = 'This policy has an invalid valuation. Please select a different policy.';
-          } else if (loanError.message.includes('Policy is expired')) {
-            errorMessage = 'This policy has expired and cannot be used as collateral.';
-          } else {
-            errorMessage = 'Transaction failed on the blockchain. The policy may not be valid for loans.';
-          }
-        } else {
-          errorMessage = `Transaction failed: ${loanError.message}`;
-        }
-      }
-
-      // Update the existing toast with error message
-      toast.update('loan-processing', {
-        render: errorMessage,
-        type: 'error',
-        autoClose: 5000,
-        isLoading: false
-      });
-
-      // Reset processing state
-      setIsProcessing(false);
-
-      // Log the full error for debugging
-      console.error('Detailed loan error:', loanError);
-    }
-  }, [loanError]);
+  }, [loanTxHash, txStatus, txError, isLoanCreated, chainId, selectedPolicyId, policies, address, loanAmount, interestRate, loanTerm, selectedStablecoin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
