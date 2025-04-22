@@ -164,6 +164,7 @@ export interface PolicyData {
   faceValue: string;
   expiryDate: string;
   documentHash?: string;
+  jurisdiction?: string;
   ownerAddress: string;
   txHash?: string;
 }
@@ -200,6 +201,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
           face_value: policyData.faceValue,
           expiry_date: expiryDate,
           document_hash: policyData.documentHash || null,
+          jurisdiction: policyData.jurisdiction || null,
           owner_address: policyData.ownerAddress,
           tx_hash: policyData.txHash || null,
           token_id: policyData.tokenId,
@@ -235,6 +237,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
           face_value: policyData.faceValue,
           expiry_date: expiryDate,
           document_hash: policyData.documentHash || null,
+          jurisdiction: policyData.jurisdiction || null,
           owner_address: policyData.ownerAddress,
           tx_hash: policyData.txHash || null,
           status: 'active',

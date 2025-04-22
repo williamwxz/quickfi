@@ -10,13 +10,14 @@ import { Label } from '@/components/ui/Label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import * as Select from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 import { useAccount, useChainId } from 'wagmi';
-import { useCreateLoan } from '@/hooks/useContractHooks';
+import { useCreateLoan, useSetApprovalForAll, useIsApprovedForAll } from '@/hooks/useContractHooks';
+import { useContractAddresses } from '@/hooks/useContractAddresses';
 import { toast } from 'react-toastify';
 import { parseUnits } from 'viem';
-import { LTV_PARAMS, SUPPORTED_STABLECOINS, DEFAULT_STABLECOIN } from '@/config/loanParams';
+import { LTV_PARAMS, DURATION_PARAMS, SUPPORTED_STABLECOINS, DEFAULT_STABLECOIN } from '@/config/loanParams';
 import { getTokenConfig } from '@/config/tokens';
 import { getExplorerUrl, getTransactionUrl } from '@/utils/explorer';
 
@@ -28,7 +29,7 @@ type Policy = {
   id: number;
   chain_id: number;
   address: string; // On-chain policy token address
-  token_id?: number; // Added token_id field
+  token_id: number;
   policy_number: string;
   face_value: number;
   expiry_date: string;
@@ -42,42 +43,83 @@ type Policy = {
 function LoanClientContent() {
   const searchParams = useSearchParams();
   const chainId = useChainId();
-  const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
+  const { address } = useAccount();
+  const [selectedPolicyId, setSelectedPolicyId] = useState<number | null>(null);
   const [selectedPolicyChainId, setSelectedPolicyChainId] = useState<number | null>(null);
   const [loanAmount, setLoanAmount] = useState<number>(0);
   const [loanTerm, setLoanTerm] = useState<number>(30);
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedStablecoin, setSelectedStablecoin] = useState<string>(DEFAULT_STABLECOIN);
+  const { createLoan, isLoading: isCreatingLoan, data: loanTxHash, isSuccess: isLoanCreated, error: loanError } = useCreateLoan();
+  const { setApprovalForAll } = useSetApprovalForAll();
+  const { addresses, refetch: refetchAddresses } = useContractAddresses();
 
-  // Fetch policies from Supabase
+  // Check if LoanOrigination address is loaded
+  useEffect(() => {
+    if (!addresses.LoanOrigination) {
+      console.log('LoanOrigination address is undefined, will retry in 2 seconds');
+      const timer = setTimeout(() => {
+        // Force a re-render to try loading addresses again
+        setIsProcessing(prev => !prev);
+        setIsProcessing(prev => !prev);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [addresses]);
+  // Only call useIsApprovedForAll if we have both addresses
+  const shouldCheckApproval = !!address && !!addresses.LoanOrigination;
+  const { data: isApprovedForAll = false, refetch: refetchApproval } = useIsApprovedForAll(
+    shouldCheckApproval ? address : undefined,
+    shouldCheckApproval ? addresses.LoanOrigination as `0x${string}` : undefined
+  );
+
+  // Just use isApprovedForAll for simplicity
+  const isApproved = isApprovedForAll;
+
+  // Debug approval status
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Approval status:', { isApproved, isApprovedForAll, address, loanOriginationAddress: addresses.LoanOrigination });
+    }
+
+    // Refresh approval status when component mounts or addresses change
+    if (address && addresses.LoanOrigination) {
+      refetchApproval();
+    }
+  }, [isApproved, isApprovedForAll, address, addresses.LoanOrigination, refetchApproval]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fetch policies from API
   useEffect(() => {
     async function fetchPolicies() {
+      if (!address) return; // Don't fetch if user is not connected
+
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('policies')
-          .select('*')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false });
+        const response = await fetch(`/api/policy/owner/${address}?chainId=${chainId}`);
+        const data = await response.json();
 
-        if (error) {
-          console.error('Error fetching policies:', error);
-          return;
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch policies');
         }
 
-        if (data) {
-          setPolicies(data as Policy[]);
+        // Filter active policies only
+        if (data.policies) {
+          const activePolicies = data.policies.filter((p: Policy) => p.status === 'active');
+          setPolicies(activePolicies as Policy[]);
         }
       } catch (error) {
         console.error('Error fetching policies:', error);
+        toast.error('Failed to load policies');
       } finally {
         setLoading(false);
       }
     }
 
     fetchPolicies();
-  }, []);
+  }, [address, chainId]); // Re-fetch when address or chain changes
 
   // Check for tokenId in URL query parameters
   useEffect(() => {
@@ -90,7 +132,7 @@ function LoanClientContent() {
       const policy = policies.find(p => p.token_id === Number(tokenId));
 
       if (policy) {
-        setSelectedPolicy(policy.address);
+        setSelectedPolicyId(policy.token_id || 0);
         setLoanAmount(policy.face_value * 0.5);
         setSelectedPolicyChainId(policy.chain_id);
       }
@@ -98,8 +140,8 @@ function LoanClientContent() {
   }, [searchParams, policies]);
 
   // LTV = Loan to Value ratio
-  const ltv = selectedPolicy
-    ? (loanAmount / (policies.find(p => p.address === selectedPolicy)?.face_value || 1)) * 100
+  const ltv = selectedPolicyId
+    ? (loanAmount / (policies.find(p => p.token_id === selectedPolicyId)?.face_value || 1)) * 100
     : 0;
 
   // Check if LTV exceeds maximum
@@ -119,30 +161,133 @@ function LoanClientContent() {
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + loanTerm);
 
-  const { address } = useAccount();
-  const { createLoan, isLoading: isCreatingLoan, data: loanTxHash, isSuccess: isLoanCreated } = useCreateLoan();
-  const [isProcessing, setIsProcessing] = useState(false);
-
   // Watch for transaction success
   useEffect(() => {
     if (isLoanCreated && loanTxHash) {
-      toast.success(
-        <div>
-          Loan created successfully! <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
-        </div>
-      );
-      // Redirect to dashboard after successful loan creation
-      setTimeout(() => {
-        window.location.href = '/app/dashboard';
-      }, 3000);
+      // Get the selected policy
+      const policy = policies.find(p => p.token_id === selectedPolicyId);
+
+      if (policy) {
+        // Store loan data via API
+        (async () => {
+          try {
+            const response = await fetch('/api/loan-apply', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                policyAddress: policy.address,
+                policyTokenId: policy.token_id,
+                policyChainId: policy.chain_id,
+                borrowerAddress: address,
+                loanAmount: loanAmount,
+                interestRate: interestRate,
+                termDays: loanTerm,
+                stablecoin: selectedStablecoin
+              }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+              throw new Error(result.error || 'Failed to store loan data');
+            }
+
+            // Update the existing toast with success message
+            toast.update('loan-processing', {
+              render: (
+                <div>
+                  Loan created successfully! <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
+                </div>
+              ),
+              type: 'success',
+              autoClose: 5000,
+              isLoading: false
+            });
+
+            // Redirect to dashboard after successful loan creation
+            setTimeout(() => {
+              window.location.href = '/app/dashboard';
+            }, 3000);
+          } catch (apiError) {
+            console.error('Error storing loan data via API:', apiError);
+            // Update the existing toast with warning message
+            toast.update('loan-processing', {
+              render: `Loan initiated on blockchain but failed to store in database: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
+              type: 'warning',
+              autoClose: 5000,
+              isLoading: false
+            });
+          }
+        })();
+      }
     }
-  }, [isLoanCreated, loanTxHash, chainId]);
+  }, [isLoanCreated, loanTxHash, chainId, selectedPolicyId, policies, address, loanAmount, interestRate, loanTerm, selectedStablecoin]);
+
+  // Watch for transaction failure
+  useEffect(() => {
+    if (loanError) {
+      // Get a more user-friendly error message
+      let errorMessage = 'Transaction failed';
+
+      if (loanError.message) {
+        if (loanError.message.includes('user rejected transaction')) {
+          errorMessage = 'Transaction was rejected in your wallet';
+        } else if (loanError.message.includes('execution reverted')) {
+          // Check for common errors
+          if (loanError.message.includes('invalid token')) {
+            errorMessage = 'Invalid policy token. Please select a different policy.';
+          } else if (loanError.message.includes('not approved')) {
+            errorMessage = 'Policy token not approved for loan. Please try again.';
+          } else if (loanError.message.includes('insufficient allowance')) {
+            errorMessage = 'Insufficient stablecoin allowance. Please approve more tokens.';
+          } else if (loanError.message.includes('Failed to get policy details')) {
+            errorMessage = 'This policy has invalid or missing details. Please select a different policy.';
+          } else if (loanError.message.includes('Policy valuation must be greater than zero')) {
+            errorMessage = 'This policy has an invalid valuation. Please select a different policy.';
+          } else if (loanError.message.includes('Policy is expired')) {
+            errorMessage = 'This policy has expired and cannot be used as collateral.';
+          } else {
+            errorMessage = 'Transaction failed on the blockchain. The policy may not be valid for loans.';
+          }
+        } else {
+          errorMessage = `Transaction failed: ${loanError.message}`;
+        }
+      }
+
+      // Update the existing toast with error message
+      toast.update('loan-processing', {
+        render: errorMessage,
+        type: 'error',
+        autoClose: 5000,
+        isLoading: false
+      });
+
+      // Reset processing state
+      setIsProcessing(false);
+
+      // Log the full error for debugging
+      console.error('Detailed loan error:', loanError);
+    }
+  }, [loanError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedPolicy) {
+    if (!selectedPolicyId) {
       toast.error('Please select a policy to use as collateral');
+      return;
+    }
+
+    // Validate loan term
+    if (loanTerm < DURATION_PARAMS.MIN_DURATION_DAYS) {
+      toast.error(`Loan term must be at least ${DURATION_PARAMS.MIN_DURATION_DAYS} days`);
+      return;
+    }
+
+    if (loanTerm > DURATION_PARAMS.MAX_DURATION_DAYS) {
+      toast.error(`Loan term cannot exceed ${DURATION_PARAMS.MAX_DURATION_DAYS} days`);
       return;
     }
 
@@ -150,10 +295,23 @@ function LoanClientContent() {
       setIsProcessing(true);
 
       // Get the selected policy
-      const policy = policies.find(p => p.address === selectedPolicy);
+      const policy = policies.find(p => p.token_id === selectedPolicyId);
 
       if (!policy) {
         toast.error('Selected policy not found');
+        return;
+      }
+
+      // Validate policy data
+      if (!policy.face_value || policy.face_value <= 0) {
+        toast.error('Policy has invalid face value');
+        return;
+      }
+
+      // Check if policy is expired
+      const expiryDate = new Date(policy.expiry_date);
+      if (expiryDate < new Date()) {
+        toast.error('Policy is expired and cannot be used as collateral');
         return;
       }
 
@@ -162,84 +320,105 @@ function LoanClientContent() {
 
       // Convert loan term from days to seconds
       const loanTermSeconds = BigInt(loanTerm * 24 * 60 * 60);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Loan term in days:', loanTerm);
+        console.log('Loan term in seconds:', loanTermSeconds);
+      }
 
       // Get stablecoin address based on selection
-      const stablecoinAddress = selectedStablecoin === 'USDT'
-        ? process.env.NEXT_PUBLIC_USDT_ADDRESS
-        : process.env.NEXT_PUBLIC_USDC_ADDRESS;
+      let stablecoinAddress;
+      if (selectedStablecoin === 'USDT') {
+        stablecoinAddress = addresses.USDT;
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using USDT address:', stablecoinAddress);
+        }
+      } else {
+        stablecoinAddress = addresses.USDC;
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using USDC address:', stablecoinAddress);
+        }
+      }
 
       if (!stablecoinAddress) {
+        console.error('Stablecoin address not found:', {
+          selectedStablecoin,
+          addresses
+        });
         toast.error(`${selectedStablecoin} address not configured`);
+        setIsProcessing(false);
         return;
       }
 
-      // First, approve the policy token for transfer
-      // This would typically be done with a separate approval step
-      // For simplicity, we're assuming the token is already approved
+      // Ensure the policy token is approved for transfer
+      if (!isApproved) {
+        toast.error('Please approve the policy token first');
+        setIsProcessing(false);
+        return;
+      }
 
-      // Call the createLoan function from our hook
-      await createLoan([
-        policy.address as `0x${string}`, // collateralToken
-        BigInt(policy.token_id || 1), // collateralTokenId
-        loanAmountBigInt, // principal
-        loanTermSeconds, // duration
-        stablecoinAddress as `0x${string}` // stablecoin
-      ] as [`0x${string}`, bigint, bigint, bigint, `0x${string}`]);
+      // Log all parameters for debugging
+      console.log('Creating loan with parameters:', {
+        collateralToken: policy.address,
+        collateralTokenId: policy.token_id,
+        principal: loanAmountBigInt.toString(),
+        duration: loanTermSeconds.toString(),
+        stablecoin: stablecoinAddress
+      });
 
-      // Generate a loan ID based on the transaction hash
-      const loanId = loanTxHash ? parseInt(loanTxHash.slice(-8), 16) % 10000 : Math.floor(Math.random() * 10000) + 1;
+      try {
+        // Call the createLoan function from our hook
+        await createLoan([
+          policy.address as `0x${string}`, // collateralToken
+          BigInt(policy.token_id), // collateralTokenId
+          loanAmountBigInt, // principal
+          loanTermSeconds, // duration
+          stablecoinAddress as `0x${string}` // stablecoin
+        ] as [`0x${string}`, bigint, bigint, bigint, `0x${string}`]);
+      } catch (error) {
+        console.error('Detailed loan creation error:', error);
 
-      // Store loan data in Supabase for UI purposes
-      // This will be updated once the transaction is confirmed
-      const { error } = await supabase
-        .from('loans')
-        .insert([
-          {
-            chain_id: policy.chain_id,
-            borrower_address: address,
-            collateral_address: policy.address,
-            collateral_token_id: policy.token_id || 1, // Use the token_id from the policy or default to 1
-            loan_id: loanId, // Add the loan_id
-            loan_amount: loanAmount,
-            interest_rate: interestRate,
-            term_days: loanTerm,
-            start_date: new Date().toISOString(),
-            end_date: dueDate.toISOString(),
-            status: 'pending',
-            stablecoin: selectedStablecoin,
-            tx_hash: loanTxHash
+        // Extract more detailed error message
+        let errorMessage = 'Failed to create loan';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+
+          // Check for common error patterns
+          if (errorMessage.includes('user rejected')) {
+            errorMessage = 'Transaction was rejected by the user';
+          } else if (errorMessage.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds to complete the transaction';
+          } else if (errorMessage.includes('execution reverted')) {
+            errorMessage = 'Transaction reverted by the smart contract. This could be due to insufficient policy valuation, unsupported stablecoin, or policy token not properly approved.';
           }
-        ]);
+        }
 
-      if (error) {
-        console.error('Error storing loan data:', error);
-        toast.warning('Loan initiated on blockchain but failed to store in database');
+        toast.update('loan-processing', {
+          render: errorMessage,
+          type: 'error',
+          autoClose: 5000,
+          isLoading: false
+        });
+
+        setIsProcessing(false);
+        return;
       }
 
-      // Update the policy status to 'used_as_collateral'
-      const { error: policyError } = await supabase
-        .from('policies')
-        .update({ status: 'used_as_collateral' })
-        .eq('address', policy.address)
-        .eq('chain_id', policy.chain_id);
-
-      if (policyError) {
-        console.error('Error updating policy status:', policyError);
-      }
-
-      if (loanTxHash) {
-        toast.success(
-          <div>
-            Loan application submitted! <a href={getTransactionUrl(loanTxHash, chainId)} target="_blank" rel="noopener noreferrer" className="underline">View transaction</a>
-          </div>
-        );
-      } else {
-        toast.success('Loan application submitted! Waiting for blockchain confirmation...');
+      // Show a message that the transaction is being processed
+      if (!toast.isActive('loan-processing')) {
+        toast.loading('Loan application submitted! Waiting for blockchain confirmation...', {
+          toastId: 'loan-processing', // Add a unique ID to reference this toast later
+        });
       }
     } catch (error) {
       console.error('Error submitting loan application:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create loan');
-    } finally {
+      // Only show an error toast if there's no loan-processing toast yet
+      // The useEffect for loanError will handle showing the error for transaction failures
+      toast.update('loan-processing', {
+        render: `Error submitting loan application: ${error instanceof Error ? error.message : 'Failed to create loan'}`,
+        type: 'error',
+        autoClose: 5000,
+        isLoading: false
+      });
       setIsProcessing(false);
     }
   };
@@ -270,19 +449,27 @@ function LoanClientContent() {
                         <p>No active policies found. Please tokenize a policy first.</p>
                       </div>
                     ) : (
-                      <RadioGroup value={selectedPolicy || ''} onValueChange={setSelectedPolicy}>
+                      <RadioGroup
+                        value={selectedPolicyId ? selectedPolicyId.toString() : ''}
+                        onValueChange={(value) => setSelectedPolicyId(Number(value))}
+                      >
                         <div className="space-y-4">
                           {policies.map((policy) => (
-                            <div key={policy.address} className="flex items-center space-x-3 p-4 rounded-lg border">
-                              <RadioGroupItem value={policy.address} id={policy.address} />
-                              <Label htmlFor={policy.address} className="flex flex-1 justify-between cursor-pointer">
+                            <div key={policy.token_id} className="flex items-center space-x-3 p-4 rounded-lg border">
+                              <RadioGroupItem value={policy.token_id?.toString() || ''} id={policy.token_id?.toString() || ''} />
+                              <Label htmlFor={policy.token_id?.toString() || ''} className="flex flex-1 justify-between cursor-pointer">
                                 <div>
                                   <div className="font-medium">Policy #{policy.token_id || 'N/A'}</div>
                                   <div className="text-sm text-gray-500">Policy: {policy.policy_number}</div>
                                   <div className="text-sm text-gray-500">Issuer: {policy.issuer}</div>
                                 </div>
                                 <div className="text-right">
-                                  <div className="font-medium">${policy.face_value.toLocaleString()}</div>
+                                  <div className={`font-medium ${policy.face_value < 1000 ? 'text-red-500' : ''}`}>
+                                    ${policy.face_value.toLocaleString()}
+                                    {policy.face_value < 1000 && (
+                                      <div className="text-xs text-red-500">(Low value)</div>
+                                    )}
+                                  </div>
                                   <div className="text-sm text-gray-500">
                                     Expires: {new Date(policy.expiry_date).toLocaleDateString()}
                                   </div>
@@ -386,10 +573,20 @@ function LoanClientContent() {
                           id="loanTerm"
                           type="number"
                           value={loanTerm}
-                          onChange={(e) => setLoanTerm(Number(e.target.value))}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            if (value >= DURATION_PARAMS.MIN_DURATION_DAYS && value <= DURATION_PARAMS.MAX_DURATION_DAYS) {
+                              setLoanTerm(value);
+                            }
+                          }}
+                          min={DURATION_PARAMS.MIN_DURATION_DAYS}
+                          max={DURATION_PARAMS.MAX_DURATION_DAYS}
                           placeholder="30"
                           className="mt-1"
                         />
+                        <p className="text-sm text-gray-500 mt-1">
+                          Minimum: {DURATION_PARAMS.MIN_DURATION_DAYS} days, Maximum: {DURATION_PARAMS.MAX_DURATION_DAYS} days
+                        </p>
                       </div>
                     </div>
 
@@ -420,14 +617,14 @@ function LoanClientContent() {
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Collateral:</span>
-                  {selectedPolicy ? (
+                  {selectedPolicyId ? (
                     <a
-                      href={getExplorerUrl(selectedPolicy, selectedPolicyChainId || undefined)}
+                      href={getExplorerUrl(policies.find(p => p.token_id === selectedPolicyId)?.address || '', selectedPolicyChainId || undefined)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-medium text-blue-600 hover:underline"
                     >
-                      Policy #{policies.find(p => p.address === selectedPolicy)?.token_id || 'N/A'}
+                      Policy #{selectedPolicyId || 'N/A'}
                     </a>
                   ) : (
                     <span className="font-medium">-</span>
@@ -467,14 +664,109 @@ function LoanClientContent() {
                   <span className="font-medium">{dueDate.toLocaleDateString()}</span>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white mt-4"
-                  disabled={!selectedPolicy || loanAmount <= 0 || ltv > LTV_PARAMS.MAX_LTV || isProcessing || isCreatingLoan}
-                  onClick={handleSubmit}
-                >
-                  {isProcessing || isCreatingLoan ? 'Processing...' : `Apply for ${selectedStablecoin} Loan`}
-                </Button>
+                <div className="mt-4">
+                  <>
+                    <Button
+                      type="submit"
+                      className="w-full bg-[#1D4ED8] hover:bg-blue-700 text-white mt-4"
+                      disabled={!selectedPolicyId || loanAmount <= 0 || ltv > LTV_PARAMS.MAX_LTV || isProcessing || isCreatingLoan || !isApproved}
+                      onClick={handleSubmit}
+                    >
+                      {isProcessing || isCreatingLoan ? 'Processing...' : `Apply for ${selectedStablecoin} Loan`}
+                    </Button>
+
+
+                  </>
+                </div>
+
+                {/* Show approval button if needed */}
+                {!isApproved && selectedPolicyId && (
+                  <div className="mt-4">
+                    <Button
+                      type="button"
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                      disabled={isProcessing || isCreatingLoan || !addresses.LoanOrigination}
+                      onClick={async () => {
+                        setIsProcessing(true);
+                        try {
+                          // Show a message that we're requesting approval
+                          toast.loading('Requesting approval to use your policy token...', {
+                            toastId: 'approval-processing',
+                          });
+
+                          // Get the selected policy
+                          const policy = policies.find(p => p.token_id === selectedPolicyId);
+                          if (!policy) {
+                            throw new Error('Selected policy not found');
+                          }
+
+                          // Request approval for the loan origination contract to transfer all policy tokens
+                          await setApprovalForAll(addresses.LoanOrigination as string, true);
+
+                          // Add a small delay to allow the blockchain to update
+                          await new Promise(resolve => setTimeout(resolve, 2000));
+
+                          // Refresh the approval status
+                          await refetchApproval();
+
+                          // Update the toast with success message
+                          toast.update('approval-processing', {
+                            render: 'Policy token approved successfully!',
+                            type: 'success',
+                            autoClose: 3000,
+                            isLoading: false
+                          });
+                        } catch (error) {
+                          // Update the toast with error message
+                          toast.update('approval-processing', {
+                            render: `Failed to approve policy token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                            type: 'error',
+                            autoClose: 5000,
+                            isLoading: false
+                          });
+                        } finally {
+                          setIsProcessing(false);
+                        }
+                      }}
+                    >
+                      {isProcessing ? 'Processing...' : 'Approve All Policy Tokens'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Contract address loading message */}
+                {!addresses.LoanOrigination && selectedPolicyId && (
+                  <div className="mt-2">
+                    <p className="text-xs text-amber-600 flex items-center">
+                      <Info className="inline-block w-3 h-3 mr-1" />
+                      Loading contract addresses... Please wait.
+                    </p>
+                    <button
+                      onClick={() => refetchAddresses()}
+                      className="text-xs text-blue-600 hover:underline mt-1"
+                      type="button"
+                    >
+                      Refresh contract addresses
+                    </button>
+                  </div>
+                )}
+
+                {/* Approval needed message */}
+                {addresses.LoanOrigination && !isApprovedForAll && selectedPolicyId && (
+                  <div className="mt-2">
+                    <p className="text-xs text-amber-600 flex items-center">
+                      <Info className="inline-block w-3 h-3 mr-1" />
+                      You need to approve the loan contract to use your policy tokens
+                    </p>
+                    <button
+                      onClick={() => refetchApproval()}
+                      className="text-xs text-blue-600 hover:underline mt-1"
+                      type="button"
+                    >
+                      Check approval status
+                    </button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

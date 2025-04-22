@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       issuer,
       expiryDate,
       documentHash,
+      jurisdiction,
       userAddress,
       chainId = 1337,
       txHash,
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
       faceValue,
       expiryDate,
       documentHash: documentHash || undefined,
+      jurisdiction: jurisdiction || undefined,
       ownerAddress: userAddress,
       txHash: txHash || undefined
     };
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
         issuer,
         expiryDate: expiryTimestamp.toString(),
         documentHash: documentHash || "No document hash provided",
+        jurisdiction: jurisdiction || "No jurisdiction provided",
         tokenId
       }
     };

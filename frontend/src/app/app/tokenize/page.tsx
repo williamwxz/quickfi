@@ -31,6 +31,7 @@ function TokenizeContent() {
     faceValue: '',
     expiryDate: '',
     documentHash: '',
+    jurisdiction: '',
   });
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -44,9 +45,13 @@ function TokenizeContent() {
       if (!txData?.logs?.[0]?.address) {
         throw new Error('Failed to get tokenized policy address');
       }
+
+      // We must have a token ID from the smart contract
       if (!tokenId) {
-        throw new Error("Failed to extract token ID from transaction logs");
+        throw new Error("Failed to extract token ID from transaction logs. Please check the console for more details.");
       }
+
+      console.log('Using token ID from smart contract:', tokenId);
 
       // Use the TokenizedPolicy contract address from the hook
       const tokenAddress = addresses?.TokenizedPolicy;
@@ -69,6 +74,7 @@ function TokenizeContent() {
           faceValue: formData.faceValue,
           expiryDate: formData.expiryDate,
           documentHash: formData.documentHash,
+          jurisdiction: formData.jurisdiction,
           userAddress: address,
           txHash: hash,
           tokenId: tokenId
@@ -85,7 +91,20 @@ function TokenizeContent() {
       toast.success(data.message || 'Policy data stored successfully');
     } catch (error) {
       console.error('Error storing policy:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to store policy data');
+
+      // Provide a more detailed error message for token ID extraction failures
+      if (error instanceof Error && error.message.includes('Failed to extract token ID')) {
+        toast.error(
+          <div>
+            <p>{error.message}</p>
+            <p className="mt-2 text-sm">This usually happens when the transaction was successful but we couldn&apos;t extract the token ID from the logs.</p>
+            <p className="mt-1 text-sm">Please check the browser console (F12) for more details and contact support with this information.</p>
+          </div>
+        );
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to store policy data');
+      }
+
       setIsStoring(false);
     }
   }, [address, chainId, formData, hash, txData, tokenId, addresses]);
@@ -156,6 +175,7 @@ function TokenizeContent() {
     if (!formData.policyNumber) missingFields.push('Policy Number');
     if (!formData.issuer) missingFields.push('Insurance Company Name');
     if (!formData.faceValue) missingFields.push('Face Value');
+    if (!formData.jurisdiction) missingFields.push('Jurisdiction');
     if (!formData.expiryDate) missingFields.push('Expiry Date');
     if (!formData.documentHash) missingFields.push('Document Hash');
 
@@ -292,6 +312,18 @@ function TokenizeContent() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="jurisdiction">Jurisdiction</Label>
+              <Input
+                id="jurisdiction"
+                name="jurisdiction"
+                value={formData.jurisdiction}
+                onChange={handleChange}
+                placeholder="e.g., New York, USA"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="expiryDate">Expiry Date</Label>
               <div className="relative">
                 <DatePicker
@@ -399,7 +431,7 @@ function TokenizeContent() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isUploading || isMinting || !isConnected || !formData.policyNumber || !formData.issuer || !formData.faceValue || !formData.expiryDate}
+              disabled={isUploading || isMinting || !isConnected || !formData.policyNumber || !formData.issuer || !formData.faceValue || !formData.jurisdiction || !formData.expiryDate}
             >
               {isUploading || isMinting ? 'Processing...' : 'Tokenize Policy'}
             </Button>

@@ -28,6 +28,7 @@ interface PolicyData {
   issuer: string;
   policy_type: string;
   status: string;
+  jurisdiction?: string; // Added jurisdiction field
   token_id?: number; // Added token_id field
 }
 
@@ -164,6 +165,15 @@ export default function PolicyDetails({ tokenId }: PolicyDetailsProps) {
               <div className="text-sm">
                 {policyData.policy_number}
               </div>
+
+              {policyData.jurisdiction && (
+                <>
+                  <div className="text-sm font-medium">Jurisdiction:</div>
+                  <div className="text-sm">
+                    {policyData.jurisdiction}
+                  </div>
+                </>
+              )}
             </>
           )}
 

@@ -87,19 +87,62 @@ export function useMintPolicyToken(chainId?: number) {
   let tokenId: number | undefined = undefined;
 
   if (txData && txData.logs && txData.logs.length > 0) {
-    // Look for the PolicyMinted event
-    const policyMintedLog = txData.logs.find(log =>
-      log.topics && log.topics[0] === '0xc57b2430c63aaf86ae1865b1b458464011beb3bf14a66914f2911d07161c1c2a'
+    console.log('Transaction logs count:', txData.logs.length);
+
+    // Detailed logging of all transaction logs for debugging
+    txData.logs.forEach((log, index) => {
+      console.log(`Log #${index}:`, {
+        address: log.address,
+        topics: log.topics,
+        data: log.data
+      });
+    });
+
+    // First try: Look for the ERC721 Transfer event (most reliable for NFTs)
+    // The Transfer event has signature: Transfer(address,address,uint256)
+    // keccak256("Transfer(address,address,uint256)")
+    const transferEventSignature = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+    const transferLog = txData.logs.find(log =>
+      log.topics && log.topics[0] === transferEventSignature
     );
 
-    if (policyMintedLog && policyMintedLog.topics && policyMintedLog.topics.length > 1 && policyMintedLog.topics[1]) {
-      // Extract token ID from the PolicyMinted event
-      tokenId = Number(BigInt(policyMintedLog.topics[1]));
-      console.log('Token ID:', tokenId);
-    } else if (txData.logs[0] && txData.logs[0].topics && txData.logs[0].topics.length > 3 && txData.logs[0].topics[3]) {
-      // Fallback: try to extract from the Transfer event
-      tokenId = Number(BigInt(txData.logs[0].topics[3]));
-      console.log('Token ID:', tokenId);
+    if (transferLog && transferLog.topics && transferLog.topics.length > 2) {
+      // In Transfer event, the token ID is in the last topic
+      // For ERC721, it's typically in topics[3]
+      const tokenIdTopic = transferLog.topics[transferLog.topics.length - 1];
+      if (tokenIdTopic) {
+        tokenId = Number(BigInt(tokenIdTopic));
+        console.log('Token ID from Transfer event:', tokenId);
+      }
+    }
+
+    // Second try: Look for the PolicyMinted event
+    if (tokenId === undefined) {
+      const policyMintedLog = txData.logs.find(log =>
+        log.topics && log.topics[0] === '0xc57b2430c63aaf86ae1865b1b458464011beb3bf14a66914f2911d07161c1c2a'
+      );
+
+      if (policyMintedLog && policyMintedLog.topics && policyMintedLog.topics.length > 1 && policyMintedLog.topics[1]) {
+        // Extract token ID from the PolicyMinted event
+        tokenId = Number(BigInt(policyMintedLog.topics[1]));
+        console.log('Token ID from PolicyMinted event:', tokenId);
+      }
+    }
+
+    // If we still don't have a token ID, try to extract from the return value
+    if (tokenId === undefined && txData.logs.length > 0) {
+      try {
+        // The mintPolicy function returns the token ID, which might be in the data field
+        // of one of the logs or in the transaction receipt's return value
+        if (txData.logs[0].data && txData.logs[0].data !== '0x') {
+          // Try to extract from data field if it's not empty
+          tokenId = Number(BigInt(txData.logs[0].data));
+          console.log('Token ID from log data:', tokenId);
+        }
+      } catch (error) {
+        console.error('Error extracting token ID from log data:', error);
+      }
     }
   }
 

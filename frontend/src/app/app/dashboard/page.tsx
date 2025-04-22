@@ -26,6 +26,7 @@ type Policy = {
   owner_address: string;
   issuer: string;
   policy_type: string;
+  jurisdiction?: string; // Added jurisdiction field
   status: string;
 };
 
