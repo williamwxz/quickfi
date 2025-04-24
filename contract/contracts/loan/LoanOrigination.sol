@@ -353,6 +353,15 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
     }
 
     /**
+     * @dev Get the total repayment amount for a loan
+     * @param loanId The loan ID
+     * @return amount The total repayment amount
+     */
+    function getTotalRepaymentAmount(uint256 loanId) external view returns (uint256) {
+        return _calculateRepaymentAmount(_loans[loanId]);
+    }
+
+    /**
      * @dev Calculate the total repayment amount (principal + interest)
      * @param loan The loan
      * @return amount The total repayment amount

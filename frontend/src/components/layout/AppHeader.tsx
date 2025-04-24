@@ -14,8 +14,9 @@ export default function AppHeader() {
 
   const navigation = [
     { name: 'Tokenize', href: '/app/tokenize' },
-    { name: 'Loan', href: '/app/loan' },
+    { name: 'Apply for Loan', href: '/app/loan' },
     { name: 'Dashboard', href: '/app/dashboard' },
+    { name: 'Loans', href: '/app/loans' },
     { name: 'FAQ', href: '/app/faq' },
   ];
 

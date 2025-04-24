@@ -6,9 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
-import { formatAddress } from '@/utils/explorer';
+import { formatAddress, getTransactionUrl } from '@/utils/explorer';
+import { useActivateLoan } from '@/hooks/useContractHooks';
+import { useAccount, useChainId } from 'wagmi';
+import { toast } from 'react-toastify';
 
 // Add dynamic flag to prevent static generation issues
 export const dynamic = 'force-dynamic';
@@ -49,10 +51,14 @@ type Loan = {
 
 function DashboardContent() {
   const router = useRouter();
+  const { address } = useAccount();
+  const chainId = useChainId();
+  // We'll use the contract addresses later if needed
   const [activeTab, setActiveTab] = useState<'policies' | 'loans'>('policies');
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const { isSuccess: isActivationSuccess, data: activationTxHash, txError: activationError } = useActivateLoan();
   const [metrics, setMetrics] = useState({
     totalPolicyValue: 0,
     totalPolicies: 0,
@@ -62,42 +68,40 @@ function DashboardContent() {
     availablePercentage: 0
   });
 
-  // Fetch policies and loans from Supabase
+  // Fetch policies and loans from API
   useEffect(() => {
     async function fetchData() {
+      if (!address) return;
+
       setLoading(true);
       try {
         // Fetch policies
-        const { data: policiesData, error: policiesError } = await supabase
-          .from('policies')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const policiesResponse = await fetch(`/api/policy/owner/${address}?chainId=${chainId}`);
+        const policiesData = await policiesResponse.json();
 
-        if (policiesError) {
-          console.error('Error fetching policies:', policiesError);
-          return;
+        if (!policiesResponse.ok) {
+          throw new Error(policiesData.error || 'Failed to fetch policies');
         }
 
         // Fetch loans
-        const { data: loansData, error: loansError } = await supabase
-          .from('loans')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const loansResponse = await fetch(`/api/loans/user/${address}?chainId=${chainId}`);
+        const loansData = await loansResponse.json();
 
-        if (loansError) {
-          console.error('Error fetching loans:', loansError);
-          return;
+        if (!loansResponse.ok) {
+          throw new Error(loansData.error || 'Failed to fetch loans');
         }
 
         // Set the data
-        setPolicies(policiesData || []);
-        setLoans(loansData || []);
+        const policies = policiesData.policies || [];
+        const loans = loansData.loans || [];
+        setPolicies(policies);
+        setLoans(loans);
 
         // Calculate metrics
-        const totalPolicyValue = policiesData?.reduce((sum, policy) => sum + policy.face_value, 0) || 0;
-        const availablePolicies = policiesData?.filter(p => p.status === 'active') || [];
-        const availablePolicyValue = availablePolicies.reduce((sum, policy) => sum + policy.face_value, 0) || 0;
-        const totalLoanValue = loansData?.reduce((sum, loan) => sum + loan.loan_amount, 0) || 0;
+        const totalPolicyValue = policies.reduce((sum: number, policy: Policy) => sum + policy.face_value, 0);
+        const availablePolicies = policies.filter((p: Policy) => p.status === 'active');
+        const availablePolicyValue = availablePolicies.reduce((sum: number, policy: Policy) => sum + policy.face_value, 0);
+        const totalLoanValue = loans.reduce((sum: number, loan: Loan) => sum + loan.loan_amount, 0);
 
         // Calculate available borrowing power (70% of available policy value)
         const borrowingPower = availablePolicyValue * 0.7;
@@ -119,12 +123,130 @@ function DashboardContent() {
     }
 
     fetchData();
-  }, []);
+  }, [address, chainId]);
 
   // Function to handle "Use as Collateral" button click
   const handleUseAsCollateral = (policyAddress: string, chainId: number) => {
     router.push(`/app/loan?policyAddress=${policyAddress}&chainId=${chainId}`);
   };
+
+  // Function to handle "Activate Loan" button click
+
+  // Effect to handle loan activation result (success or error)
+  useEffect(() => {
+    const handleActivationResult = async () => {
+      // Handle success
+      if (isActivationSuccess && activationTxHash) {
+        // Update the loan status in the database
+        const updateLoanStatus = async (loanId: number, txHash: string) => {
+          try {
+            const response = await fetch('/api/loan-activate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                loanId,
+                txHash,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to update loan status');
+            }
+
+            // Show success toast
+            toast.success(
+              <div>
+                Loan activated successfully!
+                <a
+                  href={getTransactionUrl(activationTxHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline ml-1"
+                >
+                  View transaction
+                </a>
+              </div>,
+              { autoClose: 5000 }
+            );
+
+            // Refresh the loans data using the API
+            if (address) {
+              const loansResponse = await fetch(`/api/loans/user/${address}?chainId=${chainId}`);
+              const loansData = await loansResponse.json();
+
+              if (loansResponse.ok) {
+                setLoans(loansData.loans || []);
+              } else {
+                console.error('Error refreshing loans data:', loansData.error);
+              }
+            }
+          } catch (error) {
+            console.error('Error updating loan status:', error);
+            toast.error('Failed to update loan status in the database');
+          }
+        };
+
+        // Find the loan that was being activated
+        const activatingLoan = loans.find((loan: Loan) => loan.status === 'pending');
+        if (activatingLoan && activatingLoan.loan_id) {
+          updateLoanStatus(activatingLoan.loan_id, activationTxHash);
+        }
+      }
+
+      // Handle error
+      if (activationError) {
+        console.error('Activation transaction error:', activationError);
+
+        let errorMessage = 'Transaction failed. Please try again.';
+
+        // Extract more specific error message if available
+        if (activationError.message) {
+          if (activationError.message.includes('execution reverted')) {
+            // Check for common revert reasons
+            if (activationError.message.includes('LoanOrigination: Loan is not pending')) {
+              errorMessage = 'This loan is no longer in pending status. It may have already been activated.';
+            } else if (activationError.message.includes('Not the borrower')) {
+              errorMessage = 'Only the borrower can activate this loan.';
+            } else if (activationError.message.includes('Failed to deposit collateral')) {
+              errorMessage = 'Failed to deposit collateral. Please check that your policy token is approved.';
+            } else {
+              // Try to extract the revert reason
+              const match = activationError.message.match(/execution reverted: ([^"]*)/i);
+              if (match && match[1]) {
+                errorMessage = `Transaction reverted: ${match[1]}`;
+              } else {
+                errorMessage = 'Transaction reverted by the contract';
+              }
+            }
+          } else {
+            errorMessage = activationError.message;
+          }
+        }
+
+        toast.error(errorMessage);
+
+        // Refresh the loans data to get the latest status
+        if (address) {
+          try {
+            const loansResponse = await fetch(`/api/loans/user/${address}?chainId=${chainId}`);
+            const loansData = await loansResponse.json();
+
+            if (loansResponse.ok) {
+              setLoans(loansData.loans || []);
+            }
+          } catch (refreshError) {
+            console.error('Error refreshing loans after error:', refreshError);
+          }
+        }
+      }
+
+  };
+
+  handleActivationResult();
+  }, [isActivationSuccess, activationTxHash, activationError, loans, address, chainId]);
 
   // Format metrics for display
   const metricsDisplay = [
@@ -406,11 +528,6 @@ function DashboardContent() {
                           {statusDisplay}
                         </Badge>
                       </div>
-                      {loan.status === 'active' && (
-                        <Button className="bg-primary text-white">
-                          Repay Loan
-                        </Button>
-                      )}
                     </div>
 
                     <p className="text-gray-600">Collateral: Policy {formatAddress(loan.collateral_address)} {policy ? `(${policy.policy_number})` : ''} {loan.collateral_token_id ? `(Token ID: ${loan.collateral_token_id})` : ''}</p>

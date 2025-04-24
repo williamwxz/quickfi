@@ -19,9 +19,6 @@ export function useContractAddresses(chainId?: number) {
       console.log(`Fetching contract addresses for chain ID: ${chainIdToUse}, retry: ${retryCount}`);
 
       const contractAddresses = await getContractAddresses(chainIdToUse);
-      console.log('Raw contract addresses:', contractAddresses);
-
-      // Add USDC and USDT addresses from environment variables
       const enhancedAddresses = {
         ...contractAddresses,
         USDC: process.env.NEXT_PUBLIC_USDC_ADDRESS || '',
@@ -60,7 +57,6 @@ export function useContractAddresses(chainId?: number) {
   }, [fetchAddresses]);
 
   const refetch = useCallback(() => {
-    console.log('Manually refetching contract addresses...');
     setRetryCount(prev => prev + 1);
   }, []);
 
