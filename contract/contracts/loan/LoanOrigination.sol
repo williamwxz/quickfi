@@ -242,20 +242,25 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
 
         // Calculate total repayment amount (principal + interest)
         uint256 totalRepayment = _calculateRepaymentAmount(loan);
-        require(amount <= totalRepayment, "LoanOrigination: Amount exceeds total repayment");
+
+        // If amount exceeds total repayment, cap it at total repayment
+        uint256 actualRepaymentAmount = amount;
+        if (amount > totalRepayment) {
+            actualRepaymentAmount = totalRepayment;
+        }
 
         // Transfer stablecoin from borrower to this contract
-        IERC20(stablecoin).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(stablecoin).safeTransferFrom(msg.sender, address(this), actualRepaymentAmount);
 
         // Approve Morpho adapter to use stablecoin
-        IERC20(stablecoin).approve(morphoAdapter, amount);
+        IERC20(stablecoin).approve(morphoAdapter, actualRepaymentAmount);
 
         // Repay loan via Morpho adapter
-        bool repaySuccess = IMorphoAdapter(morphoAdapter).repayLoan(loanId, stablecoin, amount);
+        bool repaySuccess = IMorphoAdapter(morphoAdapter).repayLoan(loanId, stablecoin, actualRepaymentAmount);
         require(repaySuccess, "LoanOrigination: Failed to repay loan");
 
         // If full repayment, release collateral
-        if (amount == totalRepayment) {
+        if (actualRepaymentAmount == totalRepayment) {
             bool releaseSuccess = IMorphoAdapter(morphoAdapter).releaseCollateral(
                 loanId,
                 loan.borrower
@@ -267,7 +272,7 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         }
 
         // Emit event
-        emit LoanRepaid(loanId, loan.borrower, amount);
+        emit LoanRepaid(loanId, loan.borrower, actualRepaymentAmount);
     }
 
     /**

@@ -304,12 +304,43 @@ export function useLoanDetails(loanId: bigint) {
     args: loanId !== undefined ? [loanId] : undefined,
     query: {
       enabled: loanId !== undefined && !!addresses.LoanOrigination,
+      // Aggressive caching settings to ensure we get fresh data
+      staleTime: 0, // Always consider data stale
+      refetchInterval: 3000, // Refetch every 3 seconds
+      refetchOnMount: true, // Refetch when component mounts
+      refetchOnWindowFocus: true, // Refetch when window gets focus
+      refetchOnReconnect: true, // Refetch when network reconnects
     },
   });
 
+  // Log when loan details are fetched
+  useEffect(() => {
+    if (result.data) {
+      const loanData = result.data as LoanDetails;
+      if (loanData && loanData.status !== undefined) {
+        console.log(`Loan #${loanId.toString()} status: ${loanData.status} (${LoanStatus[loanData.status]}`);
+      }
+    }
+  }, [result.data, loanId]);
+
+  // Custom refetch function with forced refresh
+  const forceRefetch = async () => {
+    try {
+      // Force cache invalidation and refetch
+      const refetchResult = await result.refetch({ throwOnError: true });
+      console.log(`Force refetch for loan #${loanId.toString()} completed:`, 
+                  refetchResult.data ? `Status: ${LoanStatus[(refetchResult.data as LoanDetails).status]}` : 'No data');
+      return refetchResult;
+    } catch (error) {
+      console.error(`Error refetching loan #${loanId.toString()} details:`, error);
+      throw error;
+    }
+  };
+
   return {
     ...result,
-    data: result.data as LoanDetails
+    data: result.data as LoanDetails,
+    refetch: forceRefetch
   };
 }
 

@@ -100,7 +100,8 @@ interface ILoanOrigination {
     /**
      * @dev Repays a loan
      * @param loanId The loan ID
-     * @param amount The amount to repay
+     * @param amount The amount to repay. If amount exceeds the total repayment due,
+     *        it will be capped at the total repayment amount.
      */
     function repayLoan(uint256 loanId, uint256 amount) external;
 
