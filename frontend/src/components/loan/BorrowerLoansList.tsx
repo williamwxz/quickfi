@@ -43,12 +43,12 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
   const { address: userAddress } = useAccount();
 
   // Refresh loan data when component mounts
-  useEffect(() => {
-    const refreshData = async () => {
-      await refetch();
-    };
-    refreshData();
-  }, [refetch]);
+  // useEffect(() => {
+  //   const refreshData = async () => {
+  //     await refetch();
+  //   };
+  //   refreshData();
+  // }, [refetch]);
 
   // Handle loan status changes
   useEffect(() => {

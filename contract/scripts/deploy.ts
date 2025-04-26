@@ -471,6 +471,38 @@ async function main() {
     'utf8'
   );
 
+  // Also update the frontend's deployed-addresses.json file
+  const frontendAddressesPath = path.join(__dirname, '../../frontend/src/config/deployed-addresses.json');
+  try {
+    // Ensure the frontend directory exists
+    const frontendDir = path.dirname(frontendAddressesPath);
+    if (!fs.existsSync(frontendDir)) {
+      fs.mkdirSync(frontendDir, { recursive: true });
+      console.log(`Created directory: ${frontendDir}`);
+    }
+
+    // Check if the frontend addresses file exists
+    let frontendAddresses: Record<string, Record<string, string>> = {};
+    if (fs.existsSync(frontendAddressesPath)) {
+      const fileContent = fs.readFileSync(frontendAddressesPath, 'utf8');
+      frontendAddresses = JSON.parse(fileContent);
+    }
+
+    // Update with new addresses
+    frontendAddresses[network.name] = deployedAddresses;
+
+    // Write updated addresses to frontend file
+    fs.writeFileSync(
+      frontendAddressesPath,
+      JSON.stringify(frontendAddresses, null, 2),
+      'utf8'
+    );
+
+    console.log(`Frontend addresses updated at ${frontendAddressesPath}`);
+  } catch (error) {
+    console.error('Error updating frontend addresses:', error);
+  }
+
   console.log("\nQuickFi contracts deployed successfully!");
   console.log("\nContract Addresses:");
   console.log("TokenRegistry:", tokenRegistryAddress);
@@ -569,9 +601,8 @@ async function updateFrontendEnv(network: string, addresses: Record<string, stri
     'TokenizedPolicy': 'NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS',
     'RiskEngine': 'NEXT_PUBLIC_RISK_ENGINE_ADDRESS',
     'LoanOrigination': 'NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS',
-    'MorphoAdapter': 'NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS',
-    'USDC': 'NEXT_PUBLIC_USDC_ADDRESS',
-    'USDT': 'NEXT_PUBLIC_USDT_ADDRESS'
+    'MorphoAdapter': 'NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS'
+    // Removed USDC and USDT as we now use deployed-addresses.json instead of environment variables
   };
 
   // Update environment variables

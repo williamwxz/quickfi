@@ -30,14 +30,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
  * @returns An object with contract names as keys and addresses as values
  */
 export async function fetchContractAddresses(chainId: number = 1337): Promise<Partial<ContractAddresses> | null> {
-  console.log(`fetchContractAddresses called for chainId: ${chainId}`);
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       console.log('Missing Supabase credentials');
       return null;
     }
 
-    console.log('Querying Supabase for contract addresses...');
     const { data, error } = await supabase
       .from('contract_addresses')
       .select('contract_name, address')
@@ -54,14 +52,10 @@ export async function fetchContractAddresses(chainId: number = 1337): Promise<Pa
       return null;
     }
 
-    console.log(`Found ${data.length} contract addresses for chain ID: ${chainId}`);
-    console.log('Raw Supabase data:', data);
-
     const addresses: Partial<ContractAddresses> = {};
     data.forEach(item => {
       // Type assertion to ensure we're only adding valid keys
       addresses[item.contract_name as keyof ContractAddresses] = item.address;
-      console.log(`Added contract address: ${item.contract_name} = ${item.address}`);
     });
 
     return addresses;
@@ -71,84 +65,45 @@ export async function fetchContractAddresses(chainId: number = 1337): Promise<Pa
   }
 }
 
-/**
- * Fallback function to get contract addresses from environment variables
- * @returns An object with contract names as keys and addresses as values
- */
-export function getContractAddressesFromEnv(): ContractAddresses {
-  // Use a safe way to access environment variables that works in both client and server components
-  const envVars = {
-    NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS: process.env.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS,
-    NEXT_PUBLIC_RISK_ENGINE_ADDRESS: process.env.NEXT_PUBLIC_RISK_ENGINE_ADDRESS,
-    NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS: process.env.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS,
-    NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS: process.env.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS,
-    NEXT_PUBLIC_STABLECOIN_ADDRESS: process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS,
-    NEXT_PUBLIC_USDC_ADDRESS: process.env.NEXT_PUBLIC_USDC_ADDRESS,
-    NEXT_PUBLIC_USDT_ADDRESS: process.env.NEXT_PUBLIC_USDT_ADDRESS,
-  };
-
-  // Log the environment variables for debugging
-  console.log('Environment variables for contract addresses:', {
-    TokenizedPolicy: envVars.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS,
-    RiskEngine: envVars.NEXT_PUBLIC_RISK_ENGINE_ADDRESS,
-    LoanOrigination: envVars.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS,
-    MorphoAdapter: envVars.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS,
-    Stablecoin: envVars.NEXT_PUBLIC_STABLECOIN_ADDRESS,
-    USDC: envVars.NEXT_PUBLIC_USDC_ADDRESS,
-    USDT: envVars.NEXT_PUBLIC_USDT_ADDRESS,
-  });
-
-  return {
-    TokenizedPolicy: envVars.NEXT_PUBLIC_INSURANCE_POLICY_TOKEN_ADDRESS || '',
-    RiskEngine: envVars.NEXT_PUBLIC_RISK_ENGINE_ADDRESS || '',
-    LoanOrigination: envVars.NEXT_PUBLIC_LOAN_ORIGINATION_ADDRESS || '',
-    MorphoAdapter: envVars.NEXT_PUBLIC_MORPHO_ADAPTER_ADDRESS || '',
-    Stablecoin: envVars.NEXT_PUBLIC_STABLECOIN_ADDRESS || '',
-    USDC: envVars.NEXT_PUBLIC_USDC_ADDRESS || '',
-    USDT: envVars.NEXT_PUBLIC_USDT_ADDRESS || ''
-  };
-}
+// We no longer need getContractAddressesFromEnv as we use deployed-addresses.json
 
 /**
- * Get contract addresses, first trying Supabase, then falling back to environment variables
+ * Get contract addresses from Supabase
  * @param chainId The blockchain chain ID to fetch addresses for
  * @returns An object with contract names as keys and addresses as values
  */
 // Define the contract addresses type
 type ContractAddresses = {
-  TokenizedPolicy: string;
-  RiskEngine: string;
-  LoanOrigination: string;
-  MorphoAdapter: string;
-  Stablecoin: string;
-  USDC: string;
-  USDT: string;
+  TokenizedPolicy?: string;
+  RiskEngine?: string;
+  LoanOrigination?: string;
+  MorphoAdapter?: string;
+  TokenRegistry?: string;
+  USDC?: string;
+  USDT?: string;
+  [key: string]: string | undefined;
 };
 
 export async function getContractAddresses(chainId: number = 1337): Promise<ContractAddresses> {
   console.log(`getContractAddresses called for chainId: ${chainId}`);
 
-  const supabaseAddresses = await fetchContractAddresses(chainId);
-  console.log('Supabase addresses:', supabaseAddresses);
+  try {
+    // Attempt to fetch addresses from Supabase
+    const supabaseAddresses = await fetchContractAddresses(chainId);
 
-  const envAddresses = getContractAddressesFromEnv();
-  console.log('Environment addresses:', envAddresses);
+    if (supabaseAddresses) {
+      return supabaseAddresses as ContractAddresses;
+    }
 
-  if (supabaseAddresses) {
-    // Merge Supabase addresses with environment variables
-    // Environment variables take precedence for USDC and USDT
-    const mergedAddresses = {
-      ...supabaseAddresses,
-      USDC: envAddresses.USDC,
-      USDT: envAddresses.USDT
-    } as ContractAddresses;
-
-    console.log('Merged addresses:', mergedAddresses);
-    return mergedAddresses;
+    // If Supabase fetch fails, return an empty object
+    // The useContractAddresses hook will use deployed-addresses.json as fallback
+    console.log('No addresses found in Supabase, will use deployed-addresses.json as fallback');
+    return {};
+  } catch (error) {
+    console.error('Error fetching contract addresses from Supabase:', error);
+    // Return empty object, the hook will use deployed-addresses.json as fallback
+    return {};
   }
-
-  console.log('Using environment addresses only');
-  return envAddresses as ContractAddresses;
 }
 
 /**

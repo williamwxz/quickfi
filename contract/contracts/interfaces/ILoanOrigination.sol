@@ -32,7 +32,8 @@ interface ILoanOrigination {
         uint256 duration;
         uint256 endTime;
         LoanStatus status;
-        address stablecoin;  // Added stablecoin field
+        address stablecoin;
+        uint256 repaidAmount;
     }
 
     /**
@@ -74,6 +75,17 @@ interface ILoanOrigination {
     );
 
     /**
+     * @dev Event emitted when a loan is created
+     */
+    event LoanCreated(
+        uint256 indexed loanId,
+        address indexed borrower,
+        address indexed lender,
+        uint256 amount,
+        uint256 duration
+    );
+
+    /**
      * @dev Requests a loan with the tokenized policy as collateral
      * @param collateralToken Address of the tokenized policy contract
      * @param collateralTokenId Token ID of the tokenized policy
@@ -110,4 +122,11 @@ interface ILoanOrigination {
      * @param loanId The loan ID
      */
     function liquidateLoan(uint256 loanId) external;
+
+    /**
+     * @dev Returns the remaining repayment amount for a loan
+     * @param loanId The loan ID
+     * @return The remaining amount to be repaid
+     */
+    function getRemainingRepayment(uint256 loanId) external view returns (uint256);
 }

@@ -145,6 +145,10 @@ export function useMintPolicyToken(chainId?: number) {
         console.error('Error extracting token ID from log data:', error);
       }
     }
+
+    if (tokenId === undefined) {
+      console.error('Failed to extract token ID from transaction logs');
+    }
   }
 
   const mintPolicyToken = async (args: [`0x${string}`, string, `0x${string}`, bigint, bigint, `0x${string}`]) => {
@@ -292,6 +296,7 @@ export interface LoanDetails {
   endTime: bigint;
   status: LoanStatus;
   stablecoin: `0x${string}`;
+  repaidAmount: bigint;
 }
 
 // Hook to get loan details from the blockchain
