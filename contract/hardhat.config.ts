@@ -29,9 +29,9 @@ const config: HardhatUserConfig = {
     pharosDevnet: {
       url: process.env.PHAROS_RPC_URL || "https://devnet.dplabs-internal.com/",
       accounts: [PRIVATE_KEY],
-      gasPrice: 20000000000, // 20 gwei
+      gasPrice: 50000000000, // 50 gwei - increased for faster processing
       gas: 8000000, // Gas limit
-      timeout: 300000, // 5 minutes
+      timeout: 600000, // 10 minutes - increased for longer operations
       httpHeaders: {
         'Connection': 'keep-alive'
       },

@@ -326,7 +326,7 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         // Calculate remaining repayment amount (principal + interest)
         uint256 totalRepayment = _calculateRepaymentAmount(loan);
         uint256 remainingRepayment = totalRepayment - loan.repaidAmount;
-        
+
         require(remainingRepayment > 0, "LoanOrigination: Loan is already fully repaid");
 
         // If amount exceeds remaining repayment, cap it at remaining repayment
@@ -485,13 +485,28 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
     function _calculateRepaymentAmount(
         Loan memory loan
     ) internal view returns (uint256) {
-        uint256 timeElapsed = block.timestamp > loan.endTime
-            ? loan.duration
-            : block.timestamp - loan.startTime;
+        // If loan is not active, return 0
+        if (loan.status != LoanStatus.ACTIVE) {
+            return 0;
+        }
 
-        // Calculate interest (APR * principal * timeElapsed / 1 year)
-        uint256 interest = (loan.interestRate * loan.principal * timeElapsed) /
-            (10000 * 365 days);
+        // Calculate elapsed days, but cap it at loan duration in days
+        uint256 elapsedDays;
+        if (block.timestamp <= loan.startTime) {
+            // Loan hasn't started yet
+            elapsedDays = 0;
+        } else if (block.timestamp >= loan.endTime) {
+            // Loan has ended, use full duration in days
+            elapsedDays = loan.duration / 1 days;
+        } else {
+            // Loan is active and not ended - calculate days elapsed
+            uint256 secondsElapsed = block.timestamp - loan.startTime;
+            elapsedDays = secondsElapsed / 1 days;
+        }
+
+        // Calculate interest (APR * principal * elapsedDays / 365 days)
+        uint256 interest = (loan.interestRate * loan.principal * elapsedDays) /
+            (10000 * 365);
 
         return loan.principal + interest;
     }
@@ -576,7 +591,19 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
         uint256 loanId
     ) external view override returns (uint256) {
         Loan memory loan = _loans[loanId];
+
+        // If loan is not active, return 0
+        if (loan.status != LoanStatus.ACTIVE) {
+            return 0;
+        }
+
         uint256 totalRepayment = _calculateRepaymentAmount(loan);
+
+        // If repaid amount is greater than or equal to total repayment, return 0
+        if (loan.repaidAmount >= totalRepayment) {
+            return 0;
+        }
+
         return totalRepayment - loan.repaidAmount;
     }
 }

@@ -8,7 +8,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { WalletAuthCheck } from '@/components/auth/WalletAuthCheck';
 import { formatAddress, getTransactionUrl } from '@/utils/explorer';
-import { useActivateLoan } from '@/hooks/useContractHooks';
+import {
+  useActivateLoan,
+  useGetBorrowerLoans,
+  useLoanDetails,
+  useGetTotalRepaymentAmount,
+  useGetRemainingRepayment,
+  LoanStatus
+} from '@/hooks/useContractHooks';
 import { useAccount, useChainId } from 'wagmi';
 import { toast } from 'react-toastify';
 
@@ -59,6 +66,9 @@ function DashboardContent() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const { isSuccess: isActivationSuccess, data: activationTxHash, txError: activationError } = useActivateLoan();
+
+  // Fetch on-chain loan IDs for the current user
+  const { data: borrowerLoanIds } = useGetBorrowerLoans(address || '', chainId);
   const [metrics, setMetrics] = useState({
     totalPolicyValue: 0,
     totalPolicies: 0,
@@ -68,7 +78,7 @@ function DashboardContent() {
     availablePercentage: 0
   });
 
-  // Fetch policies and loans from API
+  // Fetch policies from API and loans from blockchain
   useEffect(() => {
     async function fetchData() {
       if (!address) return;
@@ -83,19 +93,25 @@ function DashboardContent() {
           throw new Error(policiesData.error || 'Failed to fetch policies');
         }
 
-        // Fetch loans
+        // Set policies data
+        const policies = policiesData.policies || [];
+        setPolicies(policies);
+
+        // We'll fetch loans from blockchain in a separate effect
+        // But still fetch from API as fallback/supplementary data
         const loansResponse = await fetch(`/api/loans/user/${address}?chainId=${chainId}`);
         const loansData = await loansResponse.json();
 
-        if (!loansResponse.ok) {
-          throw new Error(loansData.error || 'Failed to fetch loans');
-        }
+        if (loansResponse.ok) {
+          // Store the database loans data but don't set it directly
+          // We'll merge it with blockchain data later
+          const dbLoans = loansData.loans || [];
 
-        // Set the data
-        const policies = policiesData.policies || [];
-        const loans = loansData.loans || [];
-        setPolicies(policies);
-        setLoans(loans);
+          // Only use database loans as initial data
+          // The blockchain data will override/update this later
+          console.log('Database loans:', dbLoans);
+          setLoans(dbLoans);
+        }
 
         // Calculate metrics
         const totalPolicyValue = policies.reduce((sum: number, policy: Policy) => sum + policy.face_value, 0);
@@ -129,6 +145,90 @@ function DashboardContent() {
   const handleUseAsCollateral = (policyAddress: string, chainId: number) => {
     router.push(`/app/loan?policyAddress=${policyAddress}&chainId=${chainId}`);
   };
+
+  // Component to fetch loan details and update the loans state
+  const LoanDetailsFetcher = ({ loanId }: { loanId: number }) => {
+    // Convert loanId to BigInt for the hook
+    const loanIdBigInt = BigInt(loanId);
+
+    // Use the useLoanDetails hook to fetch loan details from the blockchain
+    const { data: loanDetails } = useLoanDetails(loanIdBigInt);
+
+    // Update the loans state when loan details are fetched
+    useEffect(() => {
+      if (!loanDetails || !address) return;
+
+      // Convert blockchain data to our Loan type
+      const blockchainLoan: Loan = {
+        id: loanId, // Use loanId as id
+        chain_id: chainId,
+        address: '', // Contract address not needed here
+        loan_id: loanId,
+        borrower_address: loanDetails.borrower,
+        collateral_address: loanDetails.collateralToken,
+        collateral_token_id: Number(loanDetails.collateralTokenId),
+        loan_amount: Number(loanDetails.principal) / 1e6, // Convert from wei to USDC
+        interest_rate: Number(loanDetails.interestRate) / 100, // Convert from basis points
+        term_days: Number(loanDetails.duration) / (24 * 60 * 60), // Convert from seconds to days
+        start_date: new Date(Number(loanDetails.startTime) * 1000).toISOString(),
+        end_date: new Date(Number(loanDetails.endTime) * 1000).toISOString(),
+        status: LoanStatus[loanDetails.status].toLowerCase(), // Convert enum to string
+        stablecoin: loanDetails.stablecoin
+      };
+
+      // Update the loans state with the blockchain data
+      setLoans(prevLoans => {
+        // Create a map of existing loans by loan_id for quick lookup
+        const existingLoansMap = new Map();
+
+        // Only add loans with valid loan_id to the map
+        prevLoans.forEach(loan => {
+          if (loan.loan_id !== undefined) {
+            existingLoansMap.set(loan.loan_id, loan);
+          }
+        });
+
+        // Check if this loan already exists in the state
+        const existingLoan = existingLoansMap.get(loanId);
+
+        if (existingLoan) {
+          // Update existing loan with blockchain data
+          // This ensures we keep any additional data from the database
+          return prevLoans.map(loan =>
+            loan.loan_id === loanId ? { ...loan, ...blockchainLoan } : loan
+          );
+        } else {
+          // Add new loan to the state
+          return [...prevLoans, blockchainLoan];
+        }
+      });
+    }, [loanDetails, loanId, address]);
+
+    // This component doesn't render anything
+    return null;
+  };
+
+  // Effect to create LoanDetailsFetcher components for each loan ID
+  useEffect(() => {
+    if (!borrowerLoanIds || !address) return;
+
+    // Convert borrowerLoanIds to array of numbers for easier handling
+    const loanIds = Array.isArray(borrowerLoanIds)
+      ? borrowerLoanIds.map(id => Number(id))
+      : [];
+
+    console.log('Borrower loan IDs from blockchain:', loanIds);
+
+    // Create a temporary array of loan IDs to ensure the LoanDetailsFetcher components are created
+    if (loanIds.length > 0) {
+      // We don't need to create temporary loan objects anymore
+      // The LoanDetailsFetcher components will fetch and update the loan data directly
+      // Just log the loan IDs for debugging
+      console.log('Processing blockchain loan IDs:', loanIds);
+    }
+  }, [borrowerLoanIds, address, chainId]);
+
+  // No need for a separate loanDetailsFetchers variable since we render them directly
 
   // Function to handle "Activate Loan" button click
 
@@ -272,6 +372,14 @@ function DashboardContent() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Render loan detail fetchers (invisible components) */}
+      {borrowerLoanIds && Array.isArray(borrowerLoanIds) ?
+        borrowerLoanIds.map(id => (
+          <LoanDetailsFetcher key={Number(id)} loanId={Number(id)} />
+        ))
+        : null
+      }
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-600 mt-2">
@@ -518,8 +626,11 @@ function DashboardContent() {
                 statusClass = "bg-red-100 text-red-800";
               }
 
+              // Create a unique key that combines loan_id and id
+              const uniqueKey = loan.loan_id ? `loan-${loan.loan_id}` : `db-loan-${loan.id}`;
+
               return (
-                <Card key={loan.id} className="p-6">
+                <Card key={uniqueKey} className="p-6">
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">

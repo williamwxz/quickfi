@@ -37,7 +37,7 @@ contract TokenizedPolicy is
 
     // Policy details
     mapping(uint256 => PolicyDetails) private _policyDetails;
-    uint256 private _nextTokenId;
+    uint256 private _nextTokenId = 1; // Start token IDs from 1 instead of 0
 
     /**
      * @dev Constructor

@@ -333,7 +333,7 @@ export function useLoanDetails(loanId: bigint) {
     try {
       // Force cache invalidation and refetch
       const refetchResult = await result.refetch({ throwOnError: true });
-      console.log(`Force refetch for loan #${loanId.toString()} completed:`, 
+      console.log(`Force refetch for loan #${loanId.toString()} completed:`,
                   refetchResult.data ? `Status: ${LoanStatus[(refetchResult.data as LoanDetails).status]}` : 'No data');
       return refetchResult;
     } catch (error) {
@@ -532,6 +532,22 @@ export function useGetTotalRepaymentAmount(loanId: bigint) {
     args: [loanId],
     query: {
       enabled: loanId !== undefined && !!addresses.LoanOrigination,
+    },
+  });
+}
+
+// Hook to get remaining repayment amount
+export function useGetRemainingRepayment(loanId: bigint) {
+  const { addresses } = useContractAddresses();
+  return useReadContract({
+    address: addresses.LoanOrigination as `0x${string}`,
+    abi: LoanOriginationABI,
+    functionName: 'getRemainingRepayment',
+    args: [loanId],
+    query: {
+      enabled: loanId !== undefined && !!addresses.LoanOrigination,
+      // Refresh more frequently to get up-to-date values
+      refetchInterval: 10000, // Refetch every 10 seconds
     },
   });
 }

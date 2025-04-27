@@ -222,6 +222,21 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
             <p className="text-sm text-gray-600">
               Current Interest: ${currentInterest}
             </p>
+            {totalRepaymentAmount !== undefined && (
+              <p className="text-sm text-gray-600">
+                <strong>Total Repayment: ${(Number(totalRepaymentAmount) / 1e6).toFixed(6)}</strong>
+              </p>
+            )}
+            {loan.repaidAmount > BigInt(0) && (
+              <p className="text-sm text-gray-600">
+                Repaid Amount: ${(Number(loan.repaidAmount) / 1e6).toFixed(6)}
+              </p>
+            )}
+            {totalRepaymentAmount !== undefined && loan.repaidAmount > BigInt(0) && (
+              <p className="text-sm text-gray-600">
+                Remaining: ${((Number(totalRepaymentAmount) - Number(loan.repaidAmount)) / 1e6).toFixed(6)}
+              </p>
+            )}
             <p className="text-sm text-gray-600">
               Duration: {Number(loan.duration) / 86400} days
             </p>
