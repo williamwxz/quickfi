@@ -95,42 +95,25 @@ function DashboardContent() {
         const policies = policiesData.policies || [];
         setPolicies(policies);
 
-        // We'll fetch loans from blockchain in a separate effect
-        // But still fetch from API as fallback/supplementary data
-        const loansResponse = await fetch(`/api/loans/user/${address}?chainId=${chainId}`);
-        const loansData = await loansResponse.json();
-
-        if (loansResponse.ok) {
-          // Store the database loans data but don't set it directly
-          // We'll merge it with blockchain data later
-          const dbLoans = loansData.loans || [];
-
-          // Only use database loans as initial data
-          // The blockchain data will override/update this later
-          console.log('Database loans:', dbLoans);
-          setLoans(dbLoans);
-        }
-
-        // Calculate metrics
+        // Calculate policy metrics
         const totalPolicyValue = policies.reduce((sum: number, policy: Policy) => sum + policy.face_value, 0);
         const availablePolicies = policies.filter((p: Policy) => p.status === 'active');
         const availablePolicyValue = availablePolicies.reduce((sum: number, policy: Policy) => sum + policy.face_value, 0);
-        const totalLoanValue = loans.reduce((sum: number, loan: Loan) => sum + loan.loan_amount, 0);
 
         // Calculate available borrowing power (70% of available policy value)
         const borrowingPower = availablePolicyValue * 0.7;
         const availablePercentage = totalPolicyValue > 0 ? (borrowingPower / totalPolicyValue) * 100 : 0;
 
-        setMetrics({
+        // Update metrics with policy data
+        setMetrics(prevMetrics => ({
+          ...prevMetrics,
           totalPolicyValue,
-          totalPolicies: policiesData?.length || 0,
-          totalLoanValue,
-          totalLoans: loansData?.length || 0,
+          totalPolicies: policies.length || 0,
           availableBorrowingPower: borrowingPower,
           availablePercentage
-        });
+        }));
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching policy data:', error);
       } finally {
         setLoading(false);
       }
@@ -138,6 +121,53 @@ function DashboardContent() {
 
     fetchData();
   }, [address, chainId]);
+
+  // Separate effect to fetch loans from blockchain
+  useEffect(() => {
+    // This effect will be triggered when borrowerLoanIds changes
+    // The actual loan data will be fetched by the LoanDetailsFetcher components
+    if (!borrowerLoanIds || !address) return;
+
+    // Convert borrowerLoanIds to array of numbers
+    const loanIds = Array.isArray(borrowerLoanIds)
+      ? borrowerLoanIds.map(id => Number(id))
+      : [];
+
+    console.log('Borrower loan IDs from blockchain:', loanIds);
+
+    // Clear existing loans when we get new loan IDs
+    // This ensures we only show blockchain loans
+    setLoans([]);
+
+    // If no blockchain loans, fetch from database as fallback
+    if (loanIds.length === 0) {
+      async function fetchDatabaseLoans() {
+        try {
+          const loansResponse = await fetch(`/api/loans/user/${address}?chainId=${chainId}`);
+          const loansData = await loansResponse.json();
+
+          if (loansResponse.ok) {
+            const dbLoans = loansData.loans || [];
+            console.log('No blockchain loans found. Using database loans:', dbLoans);
+
+            // Update metrics with loan data
+            const totalLoanValue = dbLoans.reduce((sum: number, loan: Loan) => sum + loan.loan_amount, 0);
+            setMetrics(prevMetrics => ({
+              ...prevMetrics,
+              totalLoanValue,
+              totalLoans: dbLoans.length
+            }));
+
+            setLoans(dbLoans);
+          }
+        } catch (error) {
+          console.error('Error fetching database loans:', error);
+        }
+      }
+
+      fetchDatabaseLoans();
+    }
+  }, [borrowerLoanIds, address, chainId]);
 
   // Function to handle "Use as Collateral" button click
   const handleUseAsCollateral = (policyAddress: string, chainId: number) => {
@@ -174,33 +204,37 @@ function DashboardContent() {
         stablecoin: loanDetails.stablecoin
       };
 
-      // Update the loans state with the blockchain data
+      // Simply add the loan to the state
+      // We've already cleared the loans state when borrowerLoanIds changes
       setLoans(prevLoans => {
-        // Create a map of existing loans by loan_id for quick lookup
-        const existingLoansMap = new Map();
-
-        // Only add loans with valid loan_id to the map
-        prevLoans.forEach(loan => {
-          if (loan.loan_id !== undefined) {
-            existingLoansMap.set(loan.loan_id, loan);
-          }
-        });
-
-        // Check if this loan already exists in the state
-        const existingLoan = existingLoansMap.get(loanId);
+        // Check if this loan already exists in the state to avoid duplicates
+        const existingLoan = prevLoans.find(loan => loan.loan_id === loanId);
 
         if (existingLoan) {
-          // Update existing loan with blockchain data
-          // This ensures we keep any additional data from the database
+          // Update existing loan with latest blockchain data
           return prevLoans.map(loan =>
-            loan.loan_id === loanId ? { ...loan, ...blockchainLoan } : loan
+            loan.loan_id === loanId ? blockchainLoan : loan
           );
         } else {
           // Add new loan to the state
           return [...prevLoans, blockchainLoan];
         }
       });
-    }, [loanDetails, loanId, address]);
+
+      // Update metrics when we get loan data
+      setMetrics(prevMetrics => {
+        // Calculate total loan value from all current loans plus this new one
+        const currentLoans = loans.filter(loan => loan.loan_id !== loanId); // Exclude this loan if it exists
+        const totalLoanValue = [...currentLoans, blockchainLoan]
+          .reduce((sum, loan) => sum + loan.loan_amount, 0);
+
+        return {
+          ...prevMetrics,
+          totalLoanValue,
+          totalLoans: currentLoans.length + 1 // Current loans count plus this one
+        };
+      });
+    }, [loanDetails, loanId, address, loans]);
 
     // This component doesn't render anything
     return null;
@@ -225,6 +259,13 @@ function DashboardContent() {
       console.log('Processing blockchain loan IDs:', loanIds);
     }
   }, [borrowerLoanIds, address, chainId]);
+
+  // Simple logging for debugging
+  useEffect(() => {
+    if (loans.length > 0) {
+      console.log('Current loans state:', loans);
+    }
+  }, [loans]);
 
   // No need for a separate loanDetailsFetchers variable since we render them directly
 
@@ -602,6 +643,7 @@ function DashboardContent() {
               </Button>
             </div>
           ) : (
+            // Simply map over the loans - our data fetching logic ensures no duplicates
             loans.map((loan) => {
               // Find the associated policy
               const policy = policies.find(p => p.address === loan.collateral_address);
