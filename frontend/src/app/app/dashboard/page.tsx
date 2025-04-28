@@ -12,8 +12,6 @@ import {
   useActivateLoan,
   useGetBorrowerLoans,
   useLoanDetails,
-  useGetTotalRepaymentAmount,
-  useGetRemainingRepayment,
   LoanStatus
 } from '@/hooks/useContractHooks';
 import { useAccount, useChainId } from 'wagmi';
