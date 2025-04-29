@@ -175,7 +175,7 @@ function TokenizeContent() {
     const missingFields = [];
     if (!formData.policyNumber) missingFields.push('Policy Number');
     if (!formData.issuer) missingFields.push('Insurance Company Name');
-    if (!formData.faceValue) missingFields.push('Face Value');
+    if (!formData.faceValue) missingFields.push('Cash Value');
     if (!formData.jurisdiction) missingFields.push('Jurisdiction');
     if (!formData.expiryDate) missingFields.push('Expiry Date');
     if (!formData.documentHash) missingFields.push('Document Hash');

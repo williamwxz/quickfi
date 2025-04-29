@@ -25,7 +25,7 @@ const CONFIG = {
   MAX_DELAY: 5000, // Reduced from 15000 - don't wait too long
 
   // Gas configuration for transactions - optimized for speed
-  GAS_LIMIT: 10000000, // Reduced to be under the block gas limit
+  GAS_LIMIT: 9000000, // Reduced to be under the block gas limit
   GAS_PRICE: ethers.parseUnits("500", "gwei"), // Higher gas price for faster inclusion
 
   // Parallel deployment - set to true to deploy contracts in parallel
