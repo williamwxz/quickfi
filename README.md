@@ -5,7 +5,7 @@ graph TD
     %% Tokenization Phase
     U1[User Uploads Insurance Policy Document]
     F1[QuickFi Frontend Next.js]
-    B1[QuickFi Backend Go]
+    B1[QuickFi Backend API]
     T1[Custom ERC721 Tokenization Contract]
     O1[Oracle/Valuation Optional]
     W1[User Wallet]

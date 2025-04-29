@@ -381,11 +381,10 @@ function DashboardContent() {
           }
         }
       }
+    };
 
-  };
-
-  handleActivationResult();
-  }, [isActivationSuccess, activationTxHash, activationError, loans, address, chainId]);
+    handleActivationResult();
+  }, [isActivationSuccess, activationTxHash, activationError, chainId]);
 
   // Format metrics for display
   const metricsDisplay = [
