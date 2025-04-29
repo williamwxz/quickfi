@@ -16,10 +16,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // First, get the loan details to check if it's already active
+    const { data: loanData, error: loanError } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('loan_id', loanId)
+      .single();
+
+    if (loanError) {
+      console.error("Error fetching loan details:", loanError);
+      return NextResponse.json(
+        { error: `Failed to fetch loan details: ${loanError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // If the loan is already active, just return success
+    if (loanData && loanData.status === 'active') {
+      return NextResponse.json({
+        success: true,
+        message: "Loan is already active",
+        loanId,
+        data: [loanData],
+        txHash
+      });
+    }
+
     // Update loan status to 'active' in Supabase
     const { data, error } = await supabase
       .from('loans')
-      .update({ 
+      .update({
         status: 'active',
         // Update start_date and end_date based on current time and term_days
         start_date: new Date().toISOString()
@@ -40,10 +66,10 @@ export async function POST(request: Request) {
       const loan = data[0];
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + loan.term_days);
-      
+
       const { error: updateError } = await supabase
         .from('loans')
-        .update({ 
+        .update({
           end_date: endDate.toISOString()
         })
         .eq('loan_id', loanId);

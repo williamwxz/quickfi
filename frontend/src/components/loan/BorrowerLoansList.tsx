@@ -111,12 +111,12 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
   // Handle approval success
   useEffect(() => {
     if (isApproveSuccess) {
-      // Since we're using MAX_UINT256 for approval, we know it's sufficient
+      // Update state to reflect approval
       setNeedsApproval(false);
       setApprovalLoading(false);
 
       // Show success message
-      toast.success('Unlimited approval successful! You can now repay any loan without further approvals.');
+      toast.success('Approval successful! You can now repay this loan.');
 
       // Refresh allowance data
       refetchAllowance().then(result => {
@@ -289,22 +289,35 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
                   onClick={async () => {
                     try {
                       setApprovalLoading(true);
-                      toast.loading(`Approving unlimited stablecoin access...`, { toastId: `approve-${loanId}` });
 
                       // Make sure we have the stablecoin address
                       if (!stablecoinAddress) {
                         throw new Error('Stablecoin address not available');
                       }
 
-                      // Use MAX_UINT256 for unlimited approval
-                      const MAX_UINT256 = BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
+                      // Make sure we have the total repayment amount
+                      if (!totalRepaymentAmount) {
+                        throw new Error('Total repayment amount not available');
+                      }
+
+                      // Use the exact repayment amount needed
+                      const repaymentAmount = totalRepaymentAmount as bigint;
+
+                      // Add a small buffer (5%) to account for any potential changes in interest
+                      const buffer = (repaymentAmount * BigInt(5)) / BigInt(100);
+                      const approvalAmount = repaymentAmount + buffer;
+
+                      // Format the amount for display
+                      const formattedAmount = (Number(approvalAmount) / 1e6).toFixed(2);
+
+                      toast.loading(`Approving ${formattedAmount} stablecoin for repayment...`, { toastId: `approve-${loanId}` });
 
                       // Approve the LoanOrigination contract to spend tokens
-                      await approve(addresses.LoanOrigination as `0x${string}`, MAX_UINT256, stablecoinAddress as `0x${string}`);
+                      await approve(addresses.LoanOrigination as `0x${string}`, approvalAmount, stablecoinAddress as `0x${string}`);
 
                       // Update toast to show transaction submitted
                       toast.update(`approve-${loanId}`, {
-                        render: `Unlimited approval transaction submitted. Waiting for confirmation...`,
+                        render: `Approval transaction submitted for ${formattedAmount} tokens. Waiting for confirmation...`,
                         type: 'info',
                         isLoading: true,
                         autoClose: false
@@ -323,7 +336,7 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
                   }}
                   disabled={isApproving || approvalLoading}
                 >
-                  {isApproving || approvalLoading ? 'Approving...' : '1. Approve Stablecoin (Unlimited)'}
+                  {isApproving || approvalLoading ? 'Approving...' : '1. Approve Stablecoin for Repayment'}
                 </Button>
                 </div>
               )}
@@ -427,7 +440,7 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
                 }}
                 disabled={isRepaying || processingLoanId === loanId.toString()}
               >
-                {isRepaying && processingLoanId === loanId.toString() ? 'Repaying...' : needsApproval ? '2. Repay Loan (Approval Required)' : 'Repay Loan'}
+                {isRepaying && processingLoanId === loanId.toString() ? 'Repaying...' : needsApproval ? '2. Repay Loan (Approval Required)' : 'Repay Loan (Approved)'}
               </Button>
               )}
 

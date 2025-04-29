@@ -71,7 +71,8 @@ export async function POST(request: Request) {
       .from('policies')
       .update({ status: 'used_as_collateral' })
       .eq('address', policyAddress)
-      .eq('chain_id', policyChainId);
+      .eq('chain_id', policyChainId)
+      .eq('token_id', policyTokenId); // Add token_id to the query to ensure we're updating the correct policy
 
     if (policyError) {
       console.error("Error updating policy status:", policyError);

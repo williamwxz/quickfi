@@ -39,8 +39,6 @@ export async function getContractAddresses(networkName: string): Promise<Contrac
   try {
     // First try to get addresses from Supabase if available
     if (supabase) {
-      console.log(`Fetching contract addresses for network ${networkName} from Supabase...`);
-      
       // Get chain ID for the network
       let chainId: number;
       switch (networkName) {
@@ -61,8 +59,6 @@ export async function getContractAddresses(networkName: string): Promise<Contrac
         .eq('is_current', true);
 
       if (!error && data && data.length > 0) {
-        console.log(`Found ${data.length} contract addresses in Supabase`);
-        
         // Convert to the expected format
         const addresses: ContractAddresses = {} as ContractAddresses;
         data.forEach((item: { contract_name: string; address: string }) => {
@@ -72,7 +68,6 @@ export async function getContractAddresses(networkName: string): Promise<Contrac
         return addresses;
       }
       
-      console.log('No addresses found in Supabase or error occurred, falling back to local file');
     }
     
     // Fallback to local deployed-addresses.json file
@@ -87,7 +82,6 @@ export async function getContractAddresses(networkName: string): Promise<Contrac
     const addresses = JSON.parse(addressesJson);
     
     if (addresses[networkName]) {
-      console.log(`Using addresses from local file for network: ${networkName}`);
       return addresses[networkName] as ContractAddresses;
     } else {
       console.error(`No addresses found for network: ${networkName}`);

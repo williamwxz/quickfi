@@ -38,18 +38,6 @@ function getNetworkName(chainId: number): string {
   } else {
     // Log the chain ID and available chain IDs for debugging
     console.warn(`Unknown chain ID: ${chainId}, defaulting to localhost`);
-    console.log('Available chain IDs:', {
-      hardhatLocal: hardhatLocal.id,
-      pharosDevnet: pharosDevnet.id,
-      sepolia: sepolia.id,
-      mainnet: mainnet.id
-    });
-
-    // Special case for Pharos Devnet (in case the ID is different in some environments)
-    if (chainId === 31337) {
-      console.log('Detected alternative Pharos Devnet chain ID (31337)');
-      return 'pharosDevnet';
-    }
 
     return 'localhost'; // Default to localhost
   }
@@ -72,14 +60,12 @@ function getDeployedAddresses(chainId: number): ContractAddresses {
 
       // If pharosDevnet is not found but we're looking for it, try localhost as fallback
       if (networkName === 'pharosDevnet' && (deployedAddresses as DeployedAddresses)['localhost']) {
-        console.log('Using localhost addresses as fallback for pharosDevnet');
         return (deployedAddresses as DeployedAddresses)['localhost'] as ContractAddresses;
       }
 
       return {};
     }
 
-    console.log(`Using addresses from deployed-addresses.json for network ${networkName}:`, addresses);
     return addresses as ContractAddresses;
   } catch (error) {
     console.error('Error getting deployed addresses:', error);
@@ -99,16 +85,13 @@ export function useContractAddresses(chainId?: number) {
       setIsLoading(true);
       // Use provided chainId or fallback to current chainId
       const chainIdToUse = chainId ?? currentChainId;
-      console.log(`Fetching contract addresses for chain ID: ${chainIdToUse}, retry: ${retryCount}`);
 
       // First get addresses from deployed-addresses.json
       const deployedContractAddresses = getDeployedAddresses(chainIdToUse);
-      console.log('Addresses from deployed-addresses.json:', deployedContractAddresses);
 
       // Try to get addresses from Supabase as a secondary source
       try {
         const supabaseAddresses = await getContractAddresses(chainIdToUse);
-        console.log('Addresses from Supabase:', supabaseAddresses);
 
         // If Supabase returned valid addresses, merge them with deployed addresses
         // But prioritize deployed-addresses.json for consistency
@@ -119,23 +102,19 @@ export function useContractAddresses(chainId?: number) {
             ...deployedContractAddresses  // Override with deployed-addresses.json
           };
 
-          console.log('Merged addresses (deployed-addresses.json takes precedence):', mergedAddresses);
           setAddresses(mergedAddresses);
         } else {
           // If Supabase didn't return valid addresses, use deployed-addresses.json
-          console.log('Using addresses from deployed-addresses.json only');
           setAddresses(deployedContractAddresses);
         }
       } catch (supabaseError) {
         // If Supabase fetch fails, just use deployed-addresses.json
         console.error('Error fetching from Supabase:', supabaseError);
-        console.log('Using addresses from deployed-addresses.json only');
         setAddresses(deployedContractAddresses);
       }
 
       // Check if we have the required addresses
       if (!deployedContractAddresses.LoanOrigination && retryCount < 3) {
-        console.log(`Missing LoanOrigination address, will retry (${retryCount + 1}/3)`);
         // Schedule a retry after a delay
         setTimeout(() => {
           setRetryCount(prev => prev + 1);
@@ -149,7 +128,6 @@ export function useContractAddresses(chainId?: number) {
       try {
         const chainIdToUse = chainId ?? currentChainId;
         const fallbackAddresses = getDeployedAddresses(chainIdToUse);
-        console.log('Using deployed-addresses.json as fallback due to error:', fallbackAddresses);
         setAddresses(fallbackAddresses);
       } catch (fallbackError) {
         console.error('Error getting fallback addresses:', fallbackError);
@@ -159,7 +137,6 @@ export function useContractAddresses(chainId?: number) {
 
       // Retry on error
       if (retryCount < 3) {
-        console.log(`Error fetching addresses, will retry (${retryCount + 1}/3)`);
         setTimeout(() => {
           setRetryCount(prev => prev + 1);
         }, 2000);

@@ -16,14 +16,17 @@ const CONFIG = {
   // Set to true to reuse existing token addresses if available
   REUSE_TOKENS: process.env.REUSE_TOKENS === 'true',
 
+  // Set to true to force deployment of new stablecoins even if existing ones are found
+  FORCE_DEPLOY_STABLECOINS: true,
+
   // Retry configuration - optimized for speed
   MAX_RETRIES: 2, // Reduced from 3 - fail faster if there's an issue
   INITIAL_DELAY: 200, // Reduced from 500 - retry quickly
   MAX_DELAY: 5000, // Reduced from 15000 - don't wait too long
 
   // Gas configuration for transactions - optimized for speed
-  GAS_LIMIT: 9000000, // Increased to match hardhat.config.ts
-  GAS_PRICE: ethers.parseUnits("60", "gwei"), // Higher gas price for faster inclusion
+  GAS_LIMIT: 10000000, // Reduced to be under the block gas limit
+  GAS_PRICE: ethers.parseUnits("500", "gwei"), // Higher gas price for faster inclusion
 
   // Parallel deployment - set to true to deploy contracts in parallel
   // Note: This is experimental and may cause issues with contract dependencies
@@ -54,27 +57,48 @@ async function retry<T>(
 ): Promise<T> {
   let retries = 0;
   let delay = initialDelay;
+  let dots = 0;
+  let intervalId: NodeJS.Timeout;
 
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      retries++;
-      if (retries > maxRetries) {
-        console.error(`Failed ${name} after ${maxRetries} retries`);
-        throw error;
+  // Start progress indicator
+  intervalId = setInterval(() => {
+    process.stdout.write(`\r${name} in progress${'.'.repeat(dots)}   `);
+    dots = (dots + 1) % 4;
+  }, 1000);
+
+  try {
+    while (true) {
+      try {
+        const result = await fn();
+        clearInterval(intervalId);
+        console.log(`\r${name} completed successfully!            `); // Extra spaces to clear the line
+        return result;
+      } catch (error) {
+        retries++;
+        if (retries > maxRetries) {
+          clearInterval(intervalId);
+          console.error(`\r${name} failed after ${maxRetries} retries`);
+          throw error;
+        }
+
+        console.log(`\r${name} attempt ${retries} failed. Retrying in ${delay / 1000} seconds...`);
+        console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+
+        // Wait for the delay period
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Exponential backoff with jitter
+        delay = Math.min(delay * 2, maxDelay) * (0.8 + Math.random() * 0.4);
       }
-
-      console.log(`Attempt ${retries} for ${name} failed. Retrying in ${delay / 1000} seconds...`);
-      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
-
-      // Wait for the delay period
-      await new Promise(resolve => setTimeout(resolve, delay));
-
-      // Exponential backoff with jitter
-      delay = Math.min(delay * 2, maxDelay) * (0.8 + Math.random() * 0.4);
     }
+  } finally {
+    clearInterval(intervalId);
   }
+}
+
+async function getNextNonce(deployer: any): Promise<number> {
+  const currentNonce = await ethers.provider.getTransactionCount(deployer.address);
+  return currentNonce;
 }
 
 async function main() {
@@ -150,16 +174,22 @@ async function main() {
   console.log("RPC URL:", (await ethers.provider.getNetwork()).toJSON());
 
   // Get the current nonce
-  const currentNonce = await ethers.provider.getTransactionCount(deployer.address);
+  let currentNonce = await ethers.provider.getTransactionCount(deployer.address);
   console.log("Starting deployment with nonce:", currentNonce);
+
+  // Before getting contract factory
+  console.log("Connecting to TokenRegistry contract factory...");
+  const TokenRegistryFactory = await ethers.getContractFactory("TokenRegistry");
+  console.log("TokenRegistry contract factory connected.");
 
   // Deploy TokenRegistry
   console.log("Deploying TokenRegistry...");
-  const TokenRegistryFactory = await ethers.getContractFactory("TokenRegistry");
+  const tokenRegistryNonce = await getNextNonce(deployer);
   const tokenRegistry = await retry(
     () => TokenRegistryFactory.deploy({
       gasLimit: CONFIG.GAS_LIMIT,
-      gasPrice: CONFIG.GAS_PRICE
+      gasPrice: CONFIG.GAS_PRICE,
+      nonce: tokenRegistryNonce
     }),
     CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "TokenRegistry deployment"
   ) as unknown as TokenRegistry;
@@ -178,13 +208,19 @@ async function main() {
   let mockUSDCInstance: MockStablecoin | undefined;
   let mockUSDTInstance: MockStablecoin | undefined;
 
+  // Before getting contract factory
+  console.log("Connecting to TokenizedPolicy contract factory...");
+  const TokenizedPolicy = await ethers.getContractFactory("TokenizedPolicy");
+  console.log("TokenizedPolicy contract factory connected.");
+
   // Deploy TokenizedPolicy (non-proxy version for simplicity)
   console.log("Deploying TokenizedPolicy...");
-  const TokenizedPolicy = await ethers.getContractFactory("TokenizedPolicy");
+  const tokenizedPolicyNonce = await getNextNonce(deployer);
   const tokenizedPolicyInstance = await retry(
     () => TokenizedPolicy.deploy("Insurance Policy Token", "IPT", {
       gasLimit: CONFIG.GAS_LIMIT,
-      gasPrice: CONFIG.GAS_PRICE
+      gasPrice: CONFIG.GAS_PRICE,
+      nonce: tokenizedPolicyNonce
     }),
     CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "TokenizedPolicy deployment"
   );
@@ -197,13 +233,19 @@ async function main() {
   const tokenizedPolicyAddress = await tokenizedPolicyInstance.getAddress();
   console.log("TokenizedPolicy deployed to:", tokenizedPolicyAddress);
 
+  // Before getting contract factory
+  console.log("Connecting to RiskEngine contract factory...");
+  const RiskEngine = await ethers.getContractFactory("RiskEngine");
+  console.log("RiskEngine contract factory connected.");
+
   // Deploy RiskEngine
   console.log("Deploying RiskEngine...");
-  const RiskEngine = await ethers.getContractFactory("RiskEngine");
+  const riskEngineNonce = await getNextNonce(deployer);
   const riskEngine = await retry(
     () => RiskEngine.deploy({
       gasLimit: CONFIG.GAS_LIMIT,
-      gasPrice: CONFIG.GAS_PRICE
+      gasPrice: CONFIG.GAS_PRICE,
+      nonce: riskEngineNonce
     }),
     CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "RiskEngine deployment"
   );
@@ -219,6 +261,7 @@ async function main() {
   // Deploy contracts with circular dependencies using placeholder addresses first
   console.log("Deploying LoanOrigination with placeholder addresses...");
   const LoanOriginationFactory = await ethers.getContractFactory("LoanOrigination");
+  console.log("LoanOrigination contract factory connected.");
 
   const loanOrigination = await retry(async () => {
     return LoanOriginationFactory.deploy(
@@ -227,7 +270,8 @@ async function main() {
       tokenRegistryAddress,
       {
         gasLimit: CONFIG.GAS_LIMIT,
-        gasPrice: CONFIG.GAS_PRICE
+        gasPrice: CONFIG.GAS_PRICE,
+        nonce: await getNextNonce(deployer)
       }
     );
   }, CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "LoanOrigination deployment") as unknown as LoanOrigination;
@@ -244,18 +288,30 @@ async function main() {
   console.log("Deploying MorphoAdapter with Proxy Pattern...");
 
   // Import required contracts for proxy deployment
+  console.log("Connecting to MorphoAdapter contract factory...");
   const MorphoAdapter = await ethers.getContractFactory("MorphoAdapter");
-  const TransparentUpgradeableProxy = await ethers.getContractFactory("TransparentUpgradeableProxy");
-  const ProxyAdmin = await ethers.getContractFactory("ProxyAdmin");
+  console.log("MorphoAdapter contract factory connected.");
 
-  // 1. Deploy the implementation contract
-  console.log("Deploying MorphoAdapter implementation...");
+  console.log("Connecting to TransparentUpgradeableProxy contract factory...");
+  const TransparentUpgradeableProxy = await ethers.getContractFactory("TransparentUpgradeableProxy");
+  console.log("TransparentUpgradeableProxy contract factory connected.");
+
+  console.log("Connecting to ProxyAdmin contract factory...");
+  const ProxyAdmin = await ethers.getContractFactory("ProxyAdmin");
+  console.log("ProxyAdmin contract factory connected.");
+
+  // For MorphoAdapter implementation
+  const morphoAdapterNonce = await getNextNonce(deployer);
   const morphoAdapterImplementation = await retry(
     () => MorphoAdapter.deploy({
-      gasLimit: CONFIG.GAS_LIMIT,
-      gasPrice: CONFIG.GAS_PRICE
+      gasLimit: 3000000,
+      gasPrice: ethers.parseUnits("300", "gwei"),
+      nonce: morphoAdapterNonce
     }),
-    CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "MorphoAdapter implementation deployment"
+    1,
+    100,
+    1000,
+    "MorphoAdapter implementation deployment"
   );
 
   await retry(
@@ -266,12 +322,13 @@ async function main() {
   const implementationAddress = await morphoAdapterImplementation.getAddress();
   console.log("MorphoAdapter implementation deployed to:", implementationAddress);
 
-  // 2. Deploy the ProxyAdmin (owner of the proxy)
-  console.log("Deploying ProxyAdmin...");
+  // For ProxyAdmin
+  const proxyAdminNonce = await getNextNonce(deployer);
   const proxyAdmin = await retry(
     () => ProxyAdmin.deploy({
       gasLimit: CONFIG.GAS_LIMIT,
-      gasPrice: CONFIG.GAS_PRICE
+      gasPrice: CONFIG.GAS_PRICE,
+      nonce: proxyAdminNonce
     }),
     CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "ProxyAdmin deployment"
   );
@@ -290,30 +347,30 @@ async function main() {
     [loanOriginationAddress, tokenRegistryAddress]
   );
 
-  // 4. Deploy the TransparentUpgradeableProxy
-  console.log("Deploying TransparentUpgradeableProxy...");
-  // Use higher gas limit and faster retry parameters for this complex deployment
+  // For TransparentUpgradeableProxy
+  const proxyNonce = await getNextNonce(deployer);
   const proxy = await retry(
     () => TransparentUpgradeableProxy.deploy(
       implementationAddress,
       proxyAdminAddress,
       initData,
       {
-        gasLimit: CONFIG.GAS_LIMIT * 1.5, // 50% more gas for this complex deployment
-        gasPrice: ethers.parseUnits("60", "gwei") // Higher gas price for faster inclusion
+        gasLimit: 8000000,
+        gasPrice: ethers.parseUnits("60", "gwei"),
+        nonce: proxyNonce
       }
     ),
     CONFIG.MAX_RETRIES,
-    CONFIG.INITIAL_DELAY / 2, // Faster initial retry
-    CONFIG.MAX_DELAY / 2,     // Faster max delay
+    CONFIG.INITIAL_DELAY / 2,
+    CONFIG.MAX_DELAY / 2,
     "TransparentUpgradeableProxy deployment"
   );
 
   await retry(
     () => proxy.waitForDeployment(),
     CONFIG.MAX_RETRIES,
-    CONFIG.INITIAL_DELAY / 2, // Faster initial retry
-    CONFIG.MAX_DELAY / 2,     // Faster max delay
+    CONFIG.INITIAL_DELAY / 2,
+    CONFIG.MAX_DELAY / 2,
     "TransparentUpgradeableProxy deployment confirmation"
   );
 
@@ -355,9 +412,13 @@ async function main() {
   await retry(async () => {
     const tx = await riskEngine.updateRiskParameters(
       tokenizedPolicyAddress,
-      7000, // 70% max LTV
-      8500, // 85% liquidation threshold
-      500   // 5% base interest rate
+      7000,
+      8500,
+      500,
+      {
+        gasLimit: CONFIG.GAS_LIMIT,
+        gasPrice: CONFIG.GAS_PRICE,
+      }
     );
     await tx.wait();
     return tx;
@@ -367,8 +428,12 @@ async function main() {
   // Now deploy stablecoins (moved to the end as it's the slowest part)
   console.log("\n--- Deploying Stablecoins (Final Step) ---");
 
-  // First check if we found existing stablecoin addresses in deployed files
-  if (existingStablecoins.USDC && existingStablecoins.USDT) {
+  // Check if we should force deploy new stablecoins
+  if (CONFIG.FORCE_DEPLOY_STABLECOINS) {
+    console.log("FORCE_DEPLOY_STABLECOINS is enabled - Deploying new stablecoins regardless of existing ones");
+  }
+  // First check if we found existing stablecoin addresses in deployed files and we're not forcing new deployments
+  else if (existingStablecoins.USDC && existingStablecoins.USDT) {
     console.log("Using existing stablecoin addresses from deployed files");
     usdcAddress = existingStablecoins.USDC;
     usdtAddress = existingStablecoins.USDT;
@@ -384,16 +449,25 @@ async function main() {
     console.log("Using existing stablecoins:");
     console.log("- USDC:", usdcAddress);
     console.log("- USDT:", usdtAddress);
-  } else if (network.name === "hardhat" || network.name === "localhost" || network.name === "pharosDevnet" || network.name === "sepolia") {
+  }
+
+  // Deploy new stablecoins if we don't have addresses yet or if we're forcing new deployments
+  if (CONFIG.FORCE_DEPLOY_STABLECOINS || (!usdcAddress && !usdtAddress && (network.name === "hardhat" || network.name === "localhost" || network.name === "pharosDevnet" || network.name === "sepolia"))) {
     // Local or testnet - deploy MockUSDC
     console.log(`${network.name} network detected - Deploying Mock Stablecoins...`);
 
     // Deploy MockUSDC
+    console.log("Connecting to MockUSDC contract factory...");
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    console.log("MockUSDC contract factory connected.");
+
+    // For MockUSDC
+    const mockUSDCNonce = await getNextNonce(deployer);
     const mockUSDC = await retry(
       () => MockUSDC.deploy("USD Coin", "USDC", 6, {
         gasLimit: CONFIG.GAS_LIMIT,
-        gasPrice: CONFIG.GAS_PRICE
+        gasPrice: CONFIG.GAS_PRICE,
+        nonce: mockUSDCNonce
       }),
       CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "MockUSDC deployment"
     );
@@ -420,11 +494,17 @@ async function main() {
     console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to deployer");
 
     // Deploy MockUSDT
+    console.log("Connecting to MockUSDT contract factory...");
     const MockUSDT = await ethers.getContractFactory("MockUSDC"); // Reuse MockUSDC contract
+    console.log("MockUSDT contract factory connected.");
+
+    // For MockUSDT
+    const mockUSDTNonce = await getNextNonce(deployer);
     const mockUSDT = await retry(
       () => MockUSDT.deploy("Tether USD", "USDT", 6, {
         gasLimit: CONFIG.GAS_LIMIT,
-        gasPrice: CONFIG.GAS_PRICE
+        gasPrice: CONFIG.GAS_PRICE,
+        nonce: mockUSDTNonce
       }),
       CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "MockUSDT deployment"
     );
@@ -715,8 +795,6 @@ async function updateFrontendEnv(network: string, addresses: Record<string, stri
   fs.writeFileSync(envPath, newEnvContent, 'utf8');
   console.log(`Frontend environment variables updated in ${envPath}`);
 }
-
-
 
 // Run the main deployment function
 main().catch((error) => {

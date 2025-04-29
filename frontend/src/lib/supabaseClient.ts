@@ -143,6 +143,7 @@ export async function storeTokenizedPolicy(policyData: PolicyData) {
       .select('*')
       .eq('chain_id', policyData.chainId)
       .eq('address', policyData.address)
+      .eq('token_id', policyData.tokenId)
       .single();
 
     if (existingPolicy) {

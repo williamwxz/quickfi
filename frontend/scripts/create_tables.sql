@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS policies (
   status VARCHAR(50) CHECK (status IN ('pending', 'active', 'used_as_collateral', 'expired', 'cancelled')) DEFAULT 'pending',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(chain_id, address),
   UNIQUE(chain_id, token_id)
 );
 
@@ -62,9 +61,7 @@ CREATE TABLE IF NOT EXISTS loans (
   stablecoin VARCHAR(10) NOT NULL DEFAULT 'USDC',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(chain_id, address),
   UNIQUE(chain_id, loan_id),
-  FOREIGN KEY (chain_id, collateral_address) REFERENCES policies(chain_id, address),
   FOREIGN KEY (chain_id, collateral_token_id) REFERENCES policies(chain_id, token_id)
 );
 
@@ -73,15 +70,6 @@ CREATE INDEX IF NOT EXISTS idx_loans_chain_collateral ON loans(chain_id, collate
 CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 CREATE INDEX IF NOT EXISTS idx_loans_loan_id ON loans(loan_id);
 CREATE INDEX IF NOT EXISTS idx_loans_collateral_token_id ON loans(collateral_token_id);
-
--- Add sample contract addresses for localhost network
-INSERT INTO contract_addresses (contract_name, address, chain_id, is_current)
-VALUES
-  ('TokenizedPolicy', '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0', 1337, TRUE),
-  ('RiskEngine', '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9', 1337, TRUE),
-  ('LoanOrigination', '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9', 1337, TRUE),
-  ('MorphoAdapter', '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707', 1337, TRUE),
-  ('Stablecoin', '0x5FbDB2315678afecb367f032d93F642f64180aa3', 1337, TRUE);
 
 -- Add sample data for policies (using chain_id 1337 for localhost)
 -- INSERT INTO policies (chain_id, address, owner_address, token_id, policy_number, issuer, policy_type, face_value, expiry_date, document_hash, status)
