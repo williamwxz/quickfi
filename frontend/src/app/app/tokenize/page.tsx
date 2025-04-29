@@ -301,7 +301,7 @@ function TokenizeContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="faceValue">Face Value</Label>
+              <Label htmlFor="faceValue">Cash Value</Label>
               <Input
                 id="faceValue"
                 name="faceValue"

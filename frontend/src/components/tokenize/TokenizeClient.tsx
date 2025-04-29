@@ -178,7 +178,7 @@ function TokenizeContent() {
                   
                   <div className="form-control">
                     <label className="label">
-                      <span className="label-text">Face Value (USD)</span>
+                      <span className="label-text">Cash Value (USD)</span>
                     </label>
                     <input
                       type="number"
