@@ -12,7 +12,7 @@ const features = [
   {
     icon: <Shield className="h-10 w-10" />,
     title: "Secure Tokenization",
-    description: "Convert insurance policies into secure ERC721 NFTs verified by our trusted network."
+    description: "Decentralized platform that unlocks liquidity from real-world insurance policies.."
   },
   {
     icon: <Clock className="h-10 w-10" />,
@@ -108,7 +108,7 @@ export default function Home() {
                   <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Unlock Capital.</span>
                 </h1>
                 <p className="text-lg md:text-xl text-gray-600 max-w-lg">
-                  Convert insurance policies into ERC721 NFTs and use them as collateral to borrow stable coins on our decentralized lending platform.
+                  A Decentralized platform that unlocks liquidity from real-world insurance policies.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <Link href="/app">

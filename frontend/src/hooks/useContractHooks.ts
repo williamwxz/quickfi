@@ -525,31 +525,104 @@ export function useRepayLoan() {
 // Add this hook after useRepayLoan
 export function useGetTotalRepaymentAmount(loanId: bigint) {
   const { addresses } = useContractAddresses();
-  return useReadContract({
+
+  // Log when the hook is called
+  useEffect(() => {
+    console.log(`useGetTotalRepaymentAmount called with loanId: ${loanId.toString()}`);
+    console.log(`LoanOrigination address: ${addresses.LoanOrigination}`);
+  }, [loanId, addresses.LoanOrigination]);
+
+  const result = useReadContract({
     address: addresses.LoanOrigination as `0x${string}`,
     abi: LoanOriginationABI,
     functionName: 'getTotalRepaymentAmount',
     args: [loanId],
     query: {
       enabled: loanId !== undefined && !!addresses.LoanOrigination,
+      // Add retry logic for better error handling
+      retry: 3,
+      retryDelay: 1000,
+      // Refresh more frequently to get up-to-date values
+      refetchInterval: 30000, // Refetch every 30 seconds
     },
   });
+
+  // Log errors for debugging
+  useEffect(() => {
+    if (result.error) {
+      console.error(`Error in useGetTotalRepaymentAmount for loan #${loanId.toString()}:`, result.error);
+      console.log('Query params:', {
+        loanId: loanId.toString(),
+        contractAddress: addresses.LoanOrigination
+      });
+    }
+  }, [result.error, loanId, addresses.LoanOrigination]);
+
+  // Log successful data fetching
+  useEffect(() => {
+    if (result.data !== undefined && result.data !== null) {
+      console.log(`Total repayment amount for loan #${loanId.toString()}: ${result.data.toString()}`);
+      console.log(`In USD: $${(Number(result.data) / 1e6).toFixed(6)}`);
+
+      // Calculate the components of the repayment amount
+      try {
+        // This is an approximation - the actual calculation happens in the smart contract
+        const formattedAmount = (Number(result.data) / 1e6).toFixed(6);
+        console.log(`Formatted total repayment: $${formattedAmount}`);
+      } catch (error) {
+        console.error('Error calculating repayment components:', error);
+      }
+    }
+  }, [result.data, loanId]);
+
+  return result;
 }
 
 // Hook to get remaining repayment amount
 export function useGetRemainingRepayment(loanId: bigint) {
   const { addresses } = useContractAddresses();
-  return useReadContract({
+
+  // Log when the hook is called
+  useEffect(() => {
+    console.log(`useGetRemainingRepayment called with loanId: ${loanId.toString()}`);
+    console.log(`LoanOrigination address: ${addresses.LoanOrigination}`);
+  }, [loanId, addresses.LoanOrigination]);
+
+  const result = useReadContract({
     address: addresses.LoanOrigination as `0x${string}`,
     abi: LoanOriginationABI,
     functionName: 'getRemainingRepayment',
     args: [loanId],
     query: {
       enabled: loanId !== undefined && !!addresses.LoanOrigination,
+      // Add retry logic for better error handling
+      retry: 3,
+      retryDelay: 1000,
       // Refresh more frequently to get up-to-date values
       refetchInterval: 10000, // Refetch every 10 seconds
     },
   });
+
+  // Log errors for debugging
+  useEffect(() => {
+    if (result.error) {
+      console.error(`Error in useGetRemainingRepayment for loan #${loanId.toString()}:`, result.error);
+      console.log('Query params:', {
+        loanId: loanId.toString(),
+        contractAddress: addresses.LoanOrigination
+      });
+    }
+  }, [result.error, loanId, addresses.LoanOrigination]);
+
+  // Log successful data fetching
+  useEffect(() => {
+    if (result.data !== undefined && result.data !== null) {
+      console.log(`Remaining repayment for loan #${loanId.toString()}: ${result.data.toString()}`);
+      console.log(`In USD: $${(Number(result.data) / 1e6).toFixed(6)}`);
+    }
+  }, [result.data, loanId]);
+
+  return result;
 }
 
 // Mock USDC Hooks

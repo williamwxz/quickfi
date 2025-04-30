@@ -1,7 +1,7 @@
 'use client';
 
 import { useAccount } from 'wagmi';
-import { useGetBorrowerLoans, useLoanDetails, useActivateLoan, useRepayLoan, useUSDCAllowance, useApproveUSDC, useGetTotalRepaymentAmount, LoanStatus, LoanDetails } from '@/hooks/useContractHooks';
+import { useGetBorrowerLoans, useLoanDetails, useActivateLoan, useRepayLoan, useUSDCAllowance, useApproveUSDC, LoanStatus, LoanDetails } from '@/hooks/useContractHooks';
 import { useContractAddresses } from '@/hooks/useContractAddresses';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -71,37 +71,66 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
   }, [loan]);
 
   // Get allowance for the stablecoin
-  // Get allowance for the stablecoin
   const { data: allowance, refetch: refetchAllowance } = useUSDCAllowance(
     userAddress as `0x${string}`,
     stablecoinAddress as `0x${string}`
   );
-  // Get total repayment amount
-  const { data: totalRepaymentAmount, isLoading: isLoadingRepayment } = useGetTotalRepaymentAmount(loanId);
 
   // Approve stablecoin for repayment
   const { approve, isLoading: isApproving, isSuccess: isApproveSuccess } = useApproveUSDC();
 
+  // Calculate total repayment amount from loan details
+  // This matches the _calculateRepaymentAmount function in LoanOrigination.sol
+  const calculateTotalRepayment = () => {
+    if (!loan) return BigInt(0);
+
+    // Calculate elapsed days, but cap it at loan duration in days
+    const now = Math.floor(Date.now() / 1000);
+    let elapsedDays: number;
+
+    if (now <= Number(loan.startTime)) {
+      // Loan hasn't started yet
+      elapsedDays = 0;
+    } else if (now >= Number(loan.endTime)) {
+      // Loan has ended, use full duration in days
+      elapsedDays = Number(loan.duration) / (24 * 60 * 60); // Convert seconds to days (1 days = 86400 seconds)
+    } else {
+      // Loan is active and not ended - calculate days elapsed
+      const secondsElapsed = now - Number(loan.startTime);
+      elapsedDays = Math.floor(secondsElapsed / (24 * 60 * 60)); // Convert seconds to days and floor the result
+    }
+
+    // Calculate interest (APR * principal * elapsedDays / 365 days)
+    // This exactly matches the contract calculation
+    const interest = (loan.interestRate * loan.principal * BigInt(elapsedDays)) / BigInt(10000 * 365);
+
+    return loan.principal + interest;
+  };
+
+  // Get total repayment amount
+  const totalRepaymentAmount = loan ? calculateTotalRepayment() : BigInt(0);
+
   // Check if approval is needed when loan data changes
   useEffect(() => {
-    // Only check approval for active loans with all required data
-    if (!loan || loan.status !== LoanStatus.ACTIVE || !stablecoinAddress ||
-        !addresses.LoanOrigination || allowance === undefined ||
-        !totalRepaymentAmount) {
-      // For non-active loans, no approval needed
-      if (loan && loan.status !== LoanStatus.ACTIVE) {
-        setNeedsApproval(false);
-      }
+    // Check if we have the necessary data to determine approval status
+    if (!loan || !stablecoinAddress || !addresses.LoanOrigination || allowance === undefined) {
       return;
     }
 
-    // Simple check if allowance is less than the total repayment amount
+    // Always check allowance regardless of loan status
     try {
       const allowanceBigInt = BigInt(allowance?.toString() || '0');
-      const repaymentBigInt = BigInt(totalRepaymentAmount.toString());
 
-      // Set approval status based on comparison
-      setNeedsApproval(allowanceBigInt < repaymentBigInt);
+      // Make sure totalRepaymentAmount is defined and convert to BigInt
+      if (totalRepaymentAmount) {
+        const repaymentBigInt = BigInt(totalRepaymentAmount.toString());
+
+        // Set approval status based on comparison
+        setNeedsApproval(allowanceBigInt < repaymentBigInt);
+      } else {
+        // If we don't have the repayment amount yet, default to needing approval
+        setNeedsApproval(true);
+      }
     } catch (error) {
       console.error('Error checking approval status:', error);
       setApprovalError('Error checking approval status');
@@ -138,8 +167,8 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
     }
   }, [isActivateSuccess, loanId, onLoanUpdated]);
 
-  // Show loading state while loan details or repayment amount are loading
-  if (isLoading || isLoadingRepayment) {
+  // Show loading state while loan details are loading
+  if (isLoading) {
     return (
       <Card className="p-4 mb-2">
         <div className="animate-pulse">
@@ -277,76 +306,73 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
         </div>
 
         <div className="flex justify-end mt-2">
-          {loan.status === LoanStatus.ACTIVE && (
-            <div className="flex flex-col items-end gap-2">
-              {/* Debug message removed to avoid React hook order issues */}
+          <div className="flex flex-col items-end gap-2">
+            {/* Stablecoin Approval Button - Always show when there's insufficient allowance */}
+            {needsApproval && (
+              <div className="flex flex-col items-end">
+              <Button
+                className="mt-2 bg-green-600 hover:bg-green-700 text-white"
+                onClick={async () => {
+                  try {
+                    setApprovalLoading(true);
 
-              {/* Stablecoin Approval Button - Appears when there's insufficient allowance */}
-              {needsApproval && (
-                <div className="flex flex-col items-end">
-                <Button
-                  className="mt-2 bg-green-600 hover:bg-green-700 text-white"
-                  onClick={async () => {
-                    try {
-                      setApprovalLoading(true);
-
-                      // Make sure we have the stablecoin address
-                      if (!stablecoinAddress) {
-                        throw new Error('Stablecoin address not available');
-                      }
-
-                      // Make sure we have the total repayment amount
-                      if (!totalRepaymentAmount) {
-                        throw new Error('Total repayment amount not available');
-                      }
-
-                      // Use the exact repayment amount needed
-                      const repaymentAmount = totalRepaymentAmount as bigint;
-
-                      // Add a small buffer (5%) to account for any potential changes in interest
-                      const buffer = (repaymentAmount * BigInt(5)) / BigInt(100);
-                      const approvalAmount = repaymentAmount + buffer;
-
-                      // Format the amount for display
-                      const formattedAmount = (Number(approvalAmount) / 1e6).toFixed(2);
-
-                      toast.loading(`Approving ${formattedAmount} stablecoin for repayment...`, { toastId: `approve-${loanId}` });
-
-                      // Approve the LoanOrigination contract to spend tokens
-                      await approve(addresses.LoanOrigination as `0x${string}`, approvalAmount, stablecoinAddress as `0x${string}`);
-
-                      // Update toast to show transaction submitted
-                      toast.update(`approve-${loanId}`, {
-                        render: `Approval transaction submitted for ${formattedAmount} tokens. Waiting for confirmation...`,
-                        type: 'info',
-                        isLoading: true,
-                        autoClose: false
-                      });
-
-                    } catch (error: Error | unknown) {
-                      console.error('Error approving stablecoin:', error);
-                      toast.update(`approve-${loanId}`, {
-                        render: `Error approving stablecoin: ${error || 'Unknown error'}`,
-                        type: 'error',
-                        isLoading: false,
-                        autoClose: 5000
-                      });
-                      setApprovalLoading(false);
+                    // Make sure we have the stablecoin address
+                    if (!stablecoinAddress) {
+                      throw new Error('Stablecoin address not available');
                     }
-                  }}
-                  disabled={isApproving || approvalLoading}
-                >
-                  {isApproving || approvalLoading ? 'Approving...' : '1. Approve Stablecoin for Repayment'}
-                </Button>
-                </div>
-              )}
 
-              {/* Repay Loan Button - Only visible for active loans */}
-              {loan.status === LoanStatus.ACTIVE && (              <Button
+                    // Make sure we have the total repayment amount
+                    if (!totalRepaymentAmount) {
+                      throw new Error('Total repayment amount not available');
+                    }
+
+                    // Use the exact repayment amount needed
+                    const repaymentAmount = totalRepaymentAmount as bigint;
+
+                    // Add a small buffer (5%) to account for any potential changes in interest
+                    const buffer = (repaymentAmount * BigInt(5)) / BigInt(100);
+                    const approvalAmount = repaymentAmount + buffer;
+
+                    // Format the amount for display
+                    const formattedAmount = (Number(approvalAmount) / 1e6).toFixed(2);
+
+                    toast.loading(`Approving ${formattedAmount} stablecoin for repayment...`, { toastId: `approve-${loanId}` });
+
+                    // Approve the LoanOrigination contract to spend tokens
+                    await approve(addresses.LoanOrigination as `0x${string}`, approvalAmount, stablecoinAddress as `0x${string}`);
+
+                    // Update toast to show transaction submitted
+                    toast.update(`approve-${loanId}`, {
+                      render: `Approval transaction submitted for ${formattedAmount} tokens. Waiting for confirmation...`,
+                      type: 'info',
+                      isLoading: true,
+                      autoClose: false
+                    });
+
+                  } catch (error: Error | unknown) {
+                    console.error('Error approving stablecoin:', error);
+                    toast.update(`approve-${loanId}`, {
+                      render: `Error approving stablecoin: ${error || 'Unknown error'}`,
+                      type: 'error',
+                      isLoading: false,
+                      autoClose: 5000
+                    });
+                    setApprovalLoading(false);
+                  }
+                }}
+                disabled={isApproving || approvalLoading}
+              >
+                {isApproving || approvalLoading ? 'Approving...' : 'Approve Stablecoin for Repayment'}
+              </Button>
+              </div>
+            )}
+
+            {/* Repay Loan Button - Only visible for active loans */}
+            {loan.status === LoanStatus.ACTIVE && (
+              <Button
                 className="mt-2 bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={async () => {
                   // Check if loan is already repaid
-                  // Check if loan is already repaid (this should never happen due to the parent condition)
                   if (loan.status !== LoanStatus.ACTIVE) {
                     toast.info(`This loan cannot be repaid in its current state.`);
                     return;
@@ -361,30 +387,16 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
                     setProcessingLoanId(loanId.toString());
                     toast.loading(`Repaying loan #${loanId.toString()}...`, { toastId: `repay-${loanId}` });
 
-                    // Get the total repayment amount from the contract
-                    // This is more accurate than calculating it on the frontend
-                    // The contract will handle capping the amount if it exceeds the total repayment
+                    // Make sure we have the total repayment amount
                     if (!totalRepaymentAmount) {
                       throw new Error('Total repayment amount not available');
                     }
 
                     const repaymentAmount = totalRepaymentAmount as bigint;
-                    console.log(`Using total repayment amount from contract: ${repaymentAmount.toString()}`);
-
-                    // For display purposes, calculate what we expect to pay
-                    const timeElapsed = Math.floor(Date.now() / 1000) - Number(loan.startTime);
-                    const duration = Number(loan.duration);
-                    const actualTime = timeElapsed > duration ? duration : timeElapsed;
-                    const interest = (BigInt(loan.interestRate) * BigInt(loan.principal) * BigInt(actualTime)) / BigInt(10000 * 365 * 24 * 60 * 60);
-                    const calculatedAmount = BigInt(loan.principal) + interest;
-
-                    console.log(`Calculated amount: ${calculatedAmount.toString()}, Contract amount: ${repaymentAmount.toString()}`);
-
-                    // Use the contract's repayment amount
-                    const totalRepayment = repaymentAmount;
+                    console.log(`Using total repayment amount: ${repaymentAmount.toString()}`);
 
                     // Call the repayLoan function
-                    await repayLoan(loanId, totalRepayment);
+                    await repayLoan(loanId, repaymentAmount);
 
                     toast.update(`repay-${loanId}`, {
                       render: `Repayment transaction submitted. Waiting for confirmation...`,
@@ -442,51 +454,50 @@ function LoanItem({ loanId, onLoanUpdated }: { loanId: bigint, onLoanUpdated: ()
               >
                 {isRepaying && processingLoanId === loanId.toString() ? 'Repaying...' : needsApproval ? '2. Repay Loan (Approval Required)' : 'Repay Loan (Approved)'}
               </Button>
-              )}
+            )}
 
-              {approvalError && (
-                <div className="text-xs text-red-500 mt-1">
-                  {approvalError}
-                </div>
-              )}
-            </div>
-          )}
+            {loan.status === LoanStatus.PENDING && (
+              <Button
+                className="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white"
+                onClick={async () => {
+                  try {
+                    setProcessingLoanId(loanId.toString());
+                    toast.loading(`Activating loan #${loanId.toString()}...`, { toastId: `activate-${loanId}` });
 
-          {loan.status === LoanStatus.PENDING && (
-            <Button
-              className="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white"
-              onClick={async () => {
-                try {
-                  setProcessingLoanId(loanId.toString());
-                  toast.loading(`Activating loan #${loanId.toString()}...`, { toastId: `activate-${loanId}` });
+                    await activateLoan(loanId);
 
-                  await activateLoan(loanId);
+                    // Show pending state while waiting for confirmation
+                    toast.update(`activate-${loanId}`, {
+                      render: `Activation transaction submitted. Waiting for confirmation...`,
+                      type: 'info',
+                      isLoading: true,
+                      autoClose: false
+                    });
 
-                  // Show pending state while waiting for confirmation
-                  toast.update(`activate-${loanId}`, {
-                    render: `Activation transaction submitted. Waiting for confirmation...`,
-                    type: 'info',
-                    isLoading: true,
-                    autoClose: false
-                  });
+                  } catch (error: Error | unknown) {
+                    console.error('Error activating loan:', error);
+                    toast.update(`activate-${loanId}`, {
+                      render: `Error activating loan: ${error || 'Unknown error'}`,
+                      type: 'error',
+                      isLoading: false,
+                      autoClose: 5000
+                    });
+                  } finally {
+                    setProcessingLoanId(null);
+                  }
+                }}
+                disabled={isActivating || processingLoanId === loanId.toString()}
+              >
+                {isActivating && processingLoanId === loanId.toString() ? 'Activating...' : 'Activate Loan'}
+              </Button>
+            )}
 
-                } catch (error: Error | unknown) {
-                  console.error('Error activating loan:', error);
-                  toast.update(`activate-${loanId}`, {
-                    render: `Error activating loan: ${error || 'Unknown error'}`,
-                    type: 'error',
-                    isLoading: false,
-                    autoClose: 5000
-                  });
-                } finally {
-                  setProcessingLoanId(null);
-                }
-              }}
-              disabled={isActivating || processingLoanId === loanId.toString()}
-            >
-              {isActivating && processingLoanId === loanId.toString() ? 'Activating...' : 'Activate Loan'}
-            </Button>
-          )}
+            {approvalError && (
+              <div className="text-xs text-red-500 mt-1">
+                {approvalError}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Card>

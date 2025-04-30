@@ -485,11 +485,6 @@ contract LoanOrigination is ILoanOrigination, AccessControl, ReentrancyGuard {
     function _calculateRepaymentAmount(
         Loan memory loan
     ) internal view returns (uint256) {
-        // If loan is not active, return 0
-        if (loan.status != LoanStatus.ACTIVE) {
-            return 0;
-        }
-
         // Calculate elapsed days, but cap it at loan duration in days
         uint256 elapsedDays;
         if (block.timestamp <= loan.startTime) {
