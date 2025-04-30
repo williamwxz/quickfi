@@ -8,33 +8,31 @@ import * as dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
-// Deployment configuration
+// Simplified deployment configuration
 const CONFIG = {
+  // Gas configuration for transactions
+  GAS_LIMIT: 5000000,
+  GAS_PRICE: ethers.parseUnits("60", "gwei"),
+
+  // Retry configuration
+  MAX_RETRIES: 2,
+  INITIAL_DELAY: 500,
+  MAX_DELAY: 5000,
+
   // Set to true to skip Supabase upload (faster deployment)
   SKIP_SUPABASE: process.env.SKIP_SUPABASE === 'true',
 
-  // Set to true to reuse existing token addresses if available
-  REUSE_TOKENS: process.env.REUSE_TOKENS === 'true',
-
-  // Set to true to force deployment of new stablecoins even if existing ones are found
+  // Always deploy new stablecoins for consistency
   FORCE_DEPLOY_STABLECOINS: true,
 
-  // Retry configuration - optimized for speed
-  MAX_RETRIES: 2, // Reduced from 3 - fail faster if there's an issue
-  INITIAL_DELAY: 200, // Reduced from 500 - retry quickly
-  MAX_DELAY: 5000, // Reduced from 15000 - don't wait too long
-
-  // Gas configuration for transactions - optimized for speed
-  GAS_LIMIT: 9000000, // Reduced to be under the block gas limit
-  GAS_PRICE: ethers.parseUnits("500", "gwei"), // Higher gas price for faster inclusion
-
-  // Parallel deployment - set to true to deploy contracts in parallel
-  // Note: This is experimental and may cause issues with contract dependencies
-  PARALLEL_DEPLOYMENT: false,
+  // Don't reuse existing tokens to avoid inconsistencies
+  REUSE_TOKENS: false
 };
 
 interface MockStablecoin extends BaseContract {
   mint(to: string, amount: bigint): Promise<any>;
+  balanceOf(account: string): Promise<bigint>;
+  decimals(): Promise<number>;
 }
 
 interface TokenRegistry extends BaseContract {
@@ -43,6 +41,7 @@ interface TokenRegistry extends BaseContract {
 
 interface LoanOrigination extends BaseContract {
   updateMorphoAdapter(adapter: string): Promise<any>;
+  morphoAdapter(): Promise<string>;
 }
 
 /**
@@ -284,115 +283,59 @@ async function main() {
   const loanOriginationAddress = await loanOrigination.getAddress();
   console.log("LoanOrigination deployed to:", loanOriginationAddress);
 
-  // Deploy MorphoAdapter with Proxy Pattern
-  console.log("Deploying MorphoAdapter with Proxy Pattern...");
+  // Deploy MockMorphoAdapter (simpler than using proxy pattern)
+  console.log("Deploying MockMorphoAdapter...");
 
-  // Import required contracts for proxy deployment
-  console.log("Connecting to MorphoAdapter contract factory...");
-  const MorphoAdapter = await ethers.getContractFactory("MorphoAdapter");
-  console.log("MorphoAdapter contract factory connected.");
+  // Import required contract for deployment
+  console.log("Connecting to MockMorphoAdapter contract factory...");
+  const MockMorphoAdapter = await ethers.getContractFactory("MockMorphoAdapter");
+  console.log("MockMorphoAdapter contract factory connected.");
 
-  console.log("Connecting to TransparentUpgradeableProxy contract factory...");
-  const TransparentUpgradeableProxy = await ethers.getContractFactory("TransparentUpgradeableProxy");
-  console.log("TransparentUpgradeableProxy contract factory connected.");
-
-  console.log("Connecting to ProxyAdmin contract factory...");
-  const ProxyAdmin = await ethers.getContractFactory("ProxyAdmin");
-  console.log("ProxyAdmin contract factory connected.");
-
-  // For MorphoAdapter implementation
+  // Deploy MockMorphoAdapter
   const morphoAdapterNonce = await getNextNonce(deployer);
-  const morphoAdapterImplementation = await retry(
-    () => MorphoAdapter.deploy({
-      gasLimit: 3000000,
-      gasPrice: ethers.parseUnits("300", "gwei"),
-      nonce: morphoAdapterNonce
-    }),
-    1,
-    100,
-    1000,
-    "MorphoAdapter implementation deployment"
-  );
-
-  await retry(
-    () => morphoAdapterImplementation.waitForDeployment(),
-    CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "MorphoAdapter implementation deployment confirmation"
-  );
-
-  const implementationAddress = await morphoAdapterImplementation.getAddress();
-  console.log("MorphoAdapter implementation deployed to:", implementationAddress);
-
-  // For ProxyAdmin
-  const proxyAdminNonce = await getNextNonce(deployer);
-  const proxyAdmin = await retry(
-    () => ProxyAdmin.deploy({
-      gasLimit: CONFIG.GAS_LIMIT,
-      gasPrice: CONFIG.GAS_PRICE,
-      nonce: proxyAdminNonce
-    }),
-    CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "ProxyAdmin deployment"
-  );
-
-  await retry(
-    () => proxyAdmin.waitForDeployment(),
-    CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "ProxyAdmin deployment confirmation"
-  );
-
-  const proxyAdminAddress = await proxyAdmin.getAddress();
-  console.log("ProxyAdmin deployed to:", proxyAdminAddress);
-
-  // 3. Prepare initialization data
-  const initData = MorphoAdapter.interface.encodeFunctionData(
-    "initialize",
-    [loanOriginationAddress, tokenRegistryAddress]
-  );
-
-  // For TransparentUpgradeableProxy
-  const proxyNonce = await getNextNonce(deployer);
-  const proxy = await retry(
-    () => TransparentUpgradeableProxy.deploy(
-      implementationAddress,
-      proxyAdminAddress,
-      initData,
+  const morphoAdapter = await retry(
+    () => MockMorphoAdapter.deploy(
+      loanOriginationAddress,
+      tokenRegistryAddress,
       {
-        gasLimit: 8000000,
-        gasPrice: ethers.parseUnits("60", "gwei"),
-        nonce: proxyNonce
+        gasLimit: CONFIG.GAS_LIMIT,
+        gasPrice: CONFIG.GAS_PRICE,
+        nonce: morphoAdapterNonce
       }
     ),
     CONFIG.MAX_RETRIES,
-    CONFIG.INITIAL_DELAY / 2,
-    CONFIG.MAX_DELAY / 2,
-    "TransparentUpgradeableProxy deployment"
+    CONFIG.INITIAL_DELAY,
+    CONFIG.MAX_DELAY,
+    "MockMorphoAdapter deployment"
   );
 
   await retry(
-    () => proxy.waitForDeployment(),
-    CONFIG.MAX_RETRIES,
-    CONFIG.INITIAL_DELAY / 2,
-    CONFIG.MAX_DELAY / 2,
-    "TransparentUpgradeableProxy deployment confirmation"
+    () => morphoAdapter.waitForDeployment(),
+    CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "MockMorphoAdapter deployment confirmation"
   );
 
-  const proxyAddress = await proxy.getAddress();
-  console.log("TransparentUpgradeableProxy deployed to:", proxyAddress);
+  const morphoAdapterAddress = await morphoAdapter.getAddress();
+  console.log("MockMorphoAdapter deployed to:", morphoAdapterAddress);
 
-  // 5. Create a contract instance that points to the proxy
-  const morphoAdapter = MorphoAdapter.attach(proxyAddress) as unknown as {
-    loanOrigination: () => Promise<string>;
-    getAddress: () => Promise<string>;
-  };
-  console.log("MorphoAdapter (proxy) ready at:", proxyAddress);
-
-  // Verify initialization was successful
+  // Verify deployment was successful
   try {
-    const loanOriginationAddress = await retry(
-      () => morphoAdapter.loanOrigination(),
-      CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "MorphoAdapter initialization verification"
-    );
-    console.log("MorphoAdapter successfully initialized with LoanOrigination:", loanOriginationAddress);
+    // Check if LoanOrigination has the LOAN_ORIGINATOR_ROLE
+    const LOAN_ORIGINATOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("LOAN_ORIGINATOR_ROLE"));
+    const hasRole = await morphoAdapter.hasRole(LOAN_ORIGINATOR_ROLE, loanOriginationAddress);
+    console.log("LoanOrigination has LOAN_ORIGINATOR_ROLE:", hasRole);
+
+    if (!hasRole) {
+      console.error("WARNING: LoanOrigination does not have LOAN_ORIGINATOR_ROLE");
+      console.log("Attempting to grant LOAN_ORIGINATOR_ROLE to LoanOrigination...");
+
+      const grantRoleTx = await morphoAdapter.grantRole(LOAN_ORIGINATOR_ROLE, loanOriginationAddress);
+      await grantRoleTx.wait();
+
+      const hasRoleNow = await morphoAdapter.hasRole(LOAN_ORIGINATOR_ROLE, loanOriginationAddress);
+      console.log("LoanOrigination now has LOAN_ORIGINATOR_ROLE:", hasRoleNow);
+    }
   } catch (error) {
-    console.error("Error verifying MorphoAdapter initialization:", error);
+    console.error("Error verifying MockMorphoAdapter deployment:", error);
     console.log("Continuing with deployment...");
   }
 
@@ -577,30 +520,48 @@ async function main() {
   );
   console.log("Added USDT to TokenRegistry");
 
-  // For local or testnet, mint some stablecoins to MorphoAdapter
-  if ((network.name === "hardhat" || network.name === "localhost" || network.name === "pharosDevnet" || network.name === "sepolia") && !CONFIG.REUSE_TOKENS) {
-    if (mockUSDCInstance) {
-      console.log("Minting USDC to MorphoAdapter for testing...");
-      const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
-      await retry(async () => {
-        const morphoAdapterAddress = await morphoAdapter.getAddress();
-        const tx = await mockUSDCInstance!.mint(morphoAdapterAddress, usdcAmount);
-        await tx.wait();
-        return tx;
-      }, CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "Minting USDC to MorphoAdapter");
-      console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to MorphoAdapter");
-    }
+  // Always mint stablecoins to MorphoAdapter for testing
+  console.log("\n--- Minting stablecoins to MorphoAdapter ---");
 
-    if (mockUSDTInstance) {
-      console.log("Minting USDT to MorphoAdapter for testing...");
-      const usdtAmount = ethers.parseUnits("1000000", 6); // 1M USDT
-      await retry(async () => {
-        const morphoAdapterAddress = await morphoAdapter.getAddress();
-        const tx = await mockUSDTInstance!.mint(morphoAdapterAddress, usdtAmount);
-        await tx.wait();
-        return tx;
-      }, CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "Minting USDT to MorphoAdapter");
-      console.log("Minted", ethers.formatUnits(usdtAmount, 6), "USDT to MorphoAdapter");
+  if (mockUSDCInstance) {
+    console.log("Minting USDC to MorphoAdapter...");
+    const usdcAmount = ethers.parseUnits("1000000", 6); // 1M USDC
+    await retry(async () => {
+      const tx = await mockUSDCInstance!.mint(morphoAdapterAddress, usdcAmount);
+      await tx.wait();
+      return tx;
+    }, CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "Minting USDC to MorphoAdapter");
+    console.log("Minted", ethers.formatUnits(usdcAmount, 6), "USDC to MorphoAdapter");
+
+    // Verify MorphoAdapter has sufficient USDC balance
+    const usdcBalance = await mockUSDCInstance.balanceOf(morphoAdapterAddress);
+    console.log("MorphoAdapter USDC balance:", ethers.formatUnits(usdcBalance, 6));
+
+    if (usdcBalance < ethers.parseUnits("1000", 6)) {
+      console.error("WARNING: MorphoAdapter USDC balance is less than expected");
+    } else {
+      console.log("✅ MorphoAdapter has sufficient USDC balance");
+    }
+  }
+
+  if (mockUSDTInstance) {
+    console.log("Minting USDT to MorphoAdapter...");
+    const usdtAmount = ethers.parseUnits("1000000", 6); // 1M USDT
+    await retry(async () => {
+      const tx = await mockUSDTInstance!.mint(morphoAdapterAddress, usdtAmount);
+      await tx.wait();
+      return tx;
+    }, CONFIG.MAX_RETRIES, CONFIG.INITIAL_DELAY, CONFIG.MAX_DELAY, "Minting USDT to MorphoAdapter");
+    console.log("Minted", ethers.formatUnits(usdtAmount, 6), "USDT to MorphoAdapter");
+
+    // Verify MorphoAdapter has sufficient USDT balance
+    const usdtBalance = await mockUSDTInstance.balanceOf(morphoAdapterAddress);
+    console.log("MorphoAdapter USDT balance:", ethers.formatUnits(usdtBalance, 6));
+
+    if (usdtBalance < ethers.parseUnits("1000", 6)) {
+      console.error("WARNING: MorphoAdapter USDT balance is less than expected");
+    } else {
+      console.log("✅ MorphoAdapter has sufficient USDT balance");
     }
   }
 
@@ -670,13 +631,61 @@ async function main() {
     console.error('Error updating frontend addresses:', error);
   }
 
+  // Final verification step
+  console.log("\n--- Final Deployment Verification ---");
+
+  // 1. Verify LoanOrigination has the correct MorphoAdapter address
+  const finalMorphoAdapter = await loanOrigination.morphoAdapter();
+  console.log("MorphoAdapter in LoanOrigination:", finalMorphoAdapter);
+  console.log("Expected MorphoAdapter:", morphoAdapterAddress);
+
+  if (finalMorphoAdapter.toLowerCase() !== morphoAdapterAddress.toLowerCase()) {
+    console.error("❌ ERROR: MorphoAdapter address mismatch in LoanOrigination");
+  } else {
+    console.log("✅ MorphoAdapter address correct in LoanOrigination");
+  }
+
+  // 2. Verify MorphoAdapter has LoanOrigination as LOAN_ORIGINATOR_ROLE
+  const finalLoanOriginatorRole = ethers.keccak256(ethers.toUtf8Bytes("LOAN_ORIGINATOR_ROLE"));
+  const finalHasRole = await morphoAdapter.hasRole(finalLoanOriginatorRole, loanOriginationAddress);
+  console.log("LoanOrigination has LOAN_ORIGINATOR_ROLE:", finalHasRole);
+
+  if (!finalHasRole) {
+    console.error("❌ ERROR: LoanOrigination does not have LOAN_ORIGINATOR_ROLE");
+  } else {
+    console.log("✅ LoanOrigination has LOAN_ORIGINATOR_ROLE");
+  }
+
+  // 3. Verify stablecoin balances
+  if (mockUSDCInstance) {
+    const usdcBalance = await mockUSDCInstance.balanceOf(morphoAdapterAddress);
+    console.log("MorphoAdapter USDC balance:", ethers.formatUnits(usdcBalance, 6));
+
+    if (usdcBalance < ethers.parseUnits("1000", 6)) {
+      console.error("❌ ERROR: MorphoAdapter USDC balance is too low");
+    } else {
+      console.log("✅ MorphoAdapter has sufficient USDC balance");
+    }
+  }
+
+  if (mockUSDTInstance) {
+    const usdtBalance = await mockUSDTInstance.balanceOf(morphoAdapterAddress);
+    console.log("MorphoAdapter USDT balance:", ethers.formatUnits(usdtBalance, 6));
+
+    if (usdtBalance < ethers.parseUnits("1000", 6)) {
+      console.error("❌ ERROR: MorphoAdapter USDT balance is too low");
+    } else {
+      console.log("✅ MorphoAdapter has sufficient USDT balance");
+    }
+  }
+
   console.log("\nQuickFi contracts deployed successfully!");
   console.log("\nContract Addresses:");
   console.log("TokenRegistry:", tokenRegistryAddress);
   console.log("TokenizedPolicy:", await tokenizedPolicyInstance.getAddress());
   console.log("RiskEngine:", await riskEngine.getAddress());
-  console.log("LoanOrigination:", await loanOrigination.getAddress());
-  console.log("MorphoAdapter:", await morphoAdapter.getAddress());
+  console.log("LoanOrigination:", loanOriginationAddress);
+  console.log("MorphoAdapter:", morphoAdapterAddress);
   console.log("USDC:", usdcAddress);
   console.log("USDT:", usdtAddress);
   console.log("\nAddresses saved to", addressesFilePath);
