@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "QuickFi - Decentralized Insurance-backed Loans",
-  description: "Get instant USDC loans backed by your tokenized insurance policies on Pharos Network",
+  description: "Get instant USDC loans backed by your tokenized insurance policies on EVM Network",
   icons: {
     icon: "/favicon.svg",
   },

@@ -50,7 +50,7 @@ const steps = [
   {
     icon: <Lock className="h-10 w-10" />,
     title: "Mint Your NFT",
-    description: "Once verified, your policy is tokenized as an ERC721 NFT on the Pharos blockchain."
+    description: "Once verified, your policy is tokenized as an ERC721 NFT on the EVM blockchain."
   },
   {
     icon: <CreditCard className="h-10 w-10" />,
@@ -87,7 +87,7 @@ const faqs = [
   },
   {
     question: "What blockchain does QuickFi use?",
-    answer: "QuickFi operates on the Pharos blockchain, which offers high security, low transaction costs, and excellent scalability for our decentralized lending platform."
+    answer: "QuickFi operates on the EVM blockchain, which offers high security, low transaction costs, and excellent scalability for our decentralized lending platform."
   }
 ];
 
@@ -108,7 +108,7 @@ export default function Home() {
                   <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Unlock Capital.</span>
                 </h1>
                 <p className="text-lg md:text-xl text-gray-600 max-w-lg">
-                  A Decentralized platform that unlocks liquidity from real-world insurance policies. Built by Prestige Fintech.
+                  A Decentralized platform that unlocks liquidity from real-world insurance policies. Built by Prestige Finance.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <Link href="/app">

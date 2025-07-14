@@ -19,11 +19,11 @@ export default function HelpPage() {
   const faqItems: FaqItem[] = [
     {
       question: "What is QuickFi?",
-      answer: "QuickFi is a decentralized micro-lending platform built on the Pharos Network that allows users to tokenize their insurance policies as ERC721 NFTs and use them as collateral to borrow stable coins. It offers a fast, secure way to unlock capital from your insurance assets without selling them."
+      answer: "QuickFi is a decentralized micro-lending platform built on the EVM that allows users to tokenize their insurance policies as ERC721 NFTs and use them as collateral to borrow stable coins. It offers a fast, secure way to unlock capital from your insurance assets without selling them."
     },
     {
       question: "How do I tokenize my insurance policy?",
-      answer: "To tokenize your insurance policy, navigate to the 'Tokenize Policy' page, upload your insurance policy document, and fill in the required metadata such as policy number, face value, and expiry date. Once submitted, your policy will be tokenized as an ERC721 NFT on the Pharos Network blockchain."
+      answer: "To tokenize your insurance policy, navigate to the 'Tokenize Policy' page, upload your insurance policy document, and fill in the required metadata such as policy number, face value, and expiry date. Once submitted, your policy will be tokenized as an ERC721 NFT on the EVM blockchain."
     },
     {
       question: "What insurance policies can I tokenize?",
@@ -50,8 +50,8 @@ export default function HelpPage() {
       answer: "Yes, QuickFi uses blockchain technology to secure your policy data. The metadata stored on-chain is minimal and encrypted, while policy documents are stored securely using decentralized storage systems like IPFS. We never share your personal information with unauthorized third parties."
     },
     {
-      question: "What is Pharos Network?",
-      answer: "Pharos Network is a high-performance, low-cost blockchain designed specifically for financial applications. It offers fast transaction times and low gas fees, making it ideal for DeFi applications like QuickFi. All operations including policy tokenization and loan management occur on this network."
+      question: "What is EVM?",
+      answer: "EVM is a high-performance, low-cost blockchain designed specifically for financial applications. It offers fast transaction times and low gas fees, making it ideal for DeFi applications like QuickFi. All operations including policy tokenization and loan management occur on this network."
     },
     {
       question: "What are the fees for using QuickFi?",
@@ -59,7 +59,7 @@ export default function HelpPage() {
     },
     {
       question: "How do I connect my wallet?",
-      answer: "Click the 'Connect Wallet' button in the top-right corner of the page. QuickFi supports popular Ethereum-compatible wallets like MetaMask, WalletConnect, Coinbase Wallet, and more through RainbowKit integration. Make sure your wallet is configured to work with the Pharos Network."
+      answer: "Click the 'Connect Wallet' button in the top-right corner of the page. QuickFi supports popular Ethereum-compatible wallets like MetaMask, WalletConnect, Coinbase Wallet, and more through RainbowKit integration. Make sure your wallet is configured to work with the EVM Network."
     },
     {
       question: "What happens to my tokenized policy after I repay my loan?",
