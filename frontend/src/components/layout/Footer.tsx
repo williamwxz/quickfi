@@ -7,6 +7,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-1">
             <h3 className="text-xl font-semibold mb-4">QuickFi</h3>
+            <h4 className="text-md mb-4">Developed by Prestige Fintech</h4>
             <p className="text-sm text-gray-400">
               A decentralized micro-loan platform on Pharos Network that enables users to
               obtain stablecoin loans backed by their tokenized insurance policies.
@@ -45,7 +46,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 pt-8 border-t border-gray-800 text-center text-sm text-gray-400">
-          <p>© {new Date().getFullYear()} QuickFi. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Prestige Fintech. All rights reserved.</p>
           <div className="flex justify-center gap-6 mt-4">
             <a href="/terms" className="text-xs hover:text-blue-400 transition-colors">Terms of Service</a>
             <a href="/privacy" className="text-xs hover:text-blue-400 transition-colors">Privacy Policy</a>

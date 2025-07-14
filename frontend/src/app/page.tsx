@@ -101,14 +101,14 @@ export default function Home() {
             <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
               <div className="space-y-6">
                 <div className="inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-600 mb-2">
-                  Built on Pharos
+                  Built on EVM
                 </div>
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
                   <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Tokenize Insurance.</span><br />
                   <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Unlock Capital.</span>
                 </h1>
                 <p className="text-lg md:text-xl text-gray-600 max-w-lg">
-                  A Decentralized platform that unlocks liquidity from real-world insurance policies.
+                  A Decentralized platform that unlocks liquidity from real-world insurance policies. Built by Prestige Fintech.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-2">
                   <Link href="/app">
