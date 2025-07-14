@@ -7,8 +7,9 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-1">
             <h3 className="text-xl font-semibold mb-4">QuickFi</h3>
+            <h4 className="text-md mb-4">Developed by Prestige Finance</h4>
             <p className="text-sm text-gray-400">
-              A decentralized micro-loan platform on Pharos Network that enables users to
+              A decentralized micro-loan platform on EVM that enables users to
               obtain stablecoin loans backed by their tokenized insurance policies.
             </p>
           </div>
@@ -26,7 +27,6 @@ export default function Footer() {
           <div>
             <h3 className="text-xl font-semibold mb-4">Ecosystem</h3>
             <ul className="space-y-2 text-sm">
-              <li><a href="https://pharosnetwork.xyz/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Pharos Network</a></li>
               <li><a href="https://perimeter.fi/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Perimeter Protocol</a></li>
               <li><a href="https://morpho.org" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Morpho Blue</a></li>
               <li><a href="https://erc721.org/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">ERC721 Standard</a></li>
@@ -45,7 +45,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 pt-8 border-t border-gray-800 text-center text-sm text-gray-400">
-          <p>© {new Date().getFullYear()} QuickFi. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Prestige Finance. All rights reserved.</p>
           <div className="flex justify-center gap-6 mt-4">
             <a href="/terms" className="text-xs hover:text-blue-400 transition-colors">Terms of Service</a>
             <a href="/privacy" className="text-xs hover:text-blue-400 transition-colors">Privacy Policy</a>
